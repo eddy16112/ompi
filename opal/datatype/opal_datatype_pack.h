@@ -51,6 +51,8 @@ static inline void pack_predefined_data( opal_convertor_t* CONVERTOR,
                                     (CONVERTOR)->pDesc, (CONVERTOR)->count );
         DO_DEBUG( opal_output( 0, "pack 1. memcpy( %p, %p, %lu ) => space %lu\n",
                                *(DESTINATION), _source, (unsigned long)_copy_blength, (unsigned long)(*(SPACE)) ); );
+        printf("pack 1. memcpy( %p, %p, %lu ) => space %lu\n",
+                               *(DESTINATION), _source, (unsigned long)_copy_blength, (unsigned long)(*(SPACE)) );
         MEMCPY_CSUM( *(DESTINATION), _source, _copy_blength, (CONVERTOR) );
         _source        += _copy_blength;
         *(DESTINATION) += _copy_blength;
