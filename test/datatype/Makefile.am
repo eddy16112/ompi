@@ -14,7 +14,7 @@
 #
 
 if PROJECT_OMPI
-    MPI_TESTS = checksum position position_noncontig ddt_test ddt_raw unpack_ooo ddt_pack
+    MPI_TESTS = checksum position position_noncontig ddt_test ddt_test_old ddt_raw unpack_ooo ddt_pack
     MPI_CHECKS = to_self
 endif
 TESTS = opal_datatype_test $(MPI_TESTS)
@@ -28,10 +28,13 @@ unpack_ooo_LDADD = \
         $(top_builddir)/opal/lib@OPAL_LIB_PREFIX@open-pal.la
 
 ddt_test_SOURCES = ddt_test.c ddt_lib.c ddt_lib.h
-ddt_test_LDFLAGS = $(OMPI_PKG_CONFIG_LDFLAGS)
-ddt_test_LDADD = \
-        $(top_builddir)/ompi/libmpi.la \
-        $(top_builddir)/opal/lib@OPAL_LIB_PREFIX@open-pal.la
+ddt_test_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)
+ddt_test_CFLAGS = -I/mnt/scratch/cuda-6.5.14/include -g 
+ddt_test_LDADD = $(top_builddir)/ompi/libmpi.la $(top_builddir)/opal/mca/common/cuda/libmca_common_cuda.la -L/mnt/scratch/cuda-6.5.14/lib64 -lcudart
+
+ddt_test_old_SOURCES = ddt_test_old.c ddt_lib.c ddt_lib.h
+ddt_test_old_LDFLAGS = $(WRAPPER_EXTRA_LDFLAGS)
+ddt_test_old_LDADD = $(top_builddir)/ompi/libmpi.la
 
 ddt_raw_SOURCES = ddt_raw.c ddt_lib.c ddt_lib.h
 ddt_raw_LDFLAGS = $(OMPI_PKG_CONFIG_LDFLAGS)
