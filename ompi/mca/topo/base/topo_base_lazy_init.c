@@ -41,7 +41,7 @@ int mca_topo_base_lazy_init(void)
          * Register all available components, giving them a chance to access the MCA parameters.
          */
         mca_base_framework_register(&ompi_topo_base_framework, MCA_BASE_REGISTER_DEFAULT);
-        if (OMPI_SUCCESS != 
+        if (OMPI_SUCCESS !=
             (err = mca_topo_base_find_available(OPAL_ENABLE_PROGRESS_THREADS,
                                                 OMPI_ENABLE_THREAD_MULTIPLE))) {
             return err;
