@@ -28,12 +28,16 @@
 #define MEMHANDLE_SIZE 8
 #define EVTHANDLE_SIZE 8
 
+typedef uint64_t cuIPCHandle[EVTHANDLE_SIZE];
+
 struct mca_mpool_common_cuda_reg_data_t {
     uint64_t memHandle[MEMHANDLE_SIZE];
     uint64_t evtHandle[EVTHANDLE_SIZE];
     uint64_t event;
     opal_ptr_t memh_seg_addr;
     size_t memh_seg_len;
+//    cuIPCHandle pipeline_evtHandle[MAX_IPC_EVENT_HANDLE];
+    uint32_t pipeline_size;
 };
 typedef struct mca_mpool_common_cuda_reg_data_t mca_mpool_common_cuda_reg_data_t;
 
@@ -86,6 +90,11 @@ OPAL_DECLSPEC int mca_common_cuda_device_can_access_peer(int *access, int dev1, 
 OPAL_DECLSPEC int mca_common_cuda_stage_one_init(void);
 OPAL_DECLSPEC int mca_common_cuda_get_address_range(void *pbase, size_t *psize, void *base);
 OPAL_DECLSPEC void mca_common_cuda_fini(void);
+OPAL_DECLSPEC int mca_common_cuda_geteventhandle(uint64_t **event, int n, mca_mpool_base_registration_t *newreg);
+OPAL_DECLSPEC int mca_common_cuda_create_event(uint64_t **event);
+OPAL_DECLSPEC int mca_common_cuda_record_event(uint64_t *event);
+OPAL_DECLSPEC int mca_common_cuda_query_event(uint64_t *event);
+OPAL_DECLSPEC int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_mpool_common_cuda_reg_data_t *handle);
 #if OPAL_CUDA_GDR_SUPPORT
 OPAL_DECLSPEC bool mca_common_cuda_previously_freed_memory(mca_mpool_base_registration_t *reg);
 OPAL_DECLSPEC void mca_common_cuda_get_buffer_id(mca_mpool_base_registration_t *reg);
