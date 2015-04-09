@@ -33,8 +33,8 @@
 static int init(void);
 static void finalize(void);
 static int get_my_cred(int dstorehandle,
-                       opal_identifier_t *my_id,
-                       opal_sec_cred_t **cred);
+                       opal_process_name_t *my_id,
+                       opal_sec_cred_t *cred);
 static int authenticate(opal_sec_cred_t *cred);
 
 opal_sec_base_module_t opal_sec_keystone_module = {
@@ -65,8 +65,8 @@ static size_t op_cbfunc(void *ptr, size_t size, size_t count, void *stream)
 }
 
 static int get_my_cred(int dstorehandle,
-                       opal_identifier_t *my_id,
-                       opal_sec_cred_t **cred)
+                       opal_process_name_t *my_id,
+                       opal_sec_cred_t *cred)
 {
     char *cmd;
     CURL *curl;

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2011      Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2012      Los Alamos National Security, LLC. All rights reserved
+ * Copyright (c) 2015      Research Organization for Information Science
+ *                         and Technology (RIST). All rights reserved.
  *
  * $COPYRIGHT$
  * 
@@ -48,6 +50,7 @@ static int allocate(orte_job_t *jdata, opal_list_t *nodes)
     int i, n, val, dig, num_nodes;
     orte_node_t *node;
 #if OPAL_HAVE_HWLOC
+    orte_topology_t *t;
     hwloc_topology_t topo;
     hwloc_obj_t obj;
     unsigned j, k;
@@ -86,7 +89,7 @@ static int allocate(orte_job_t *jdata, opal_list_t *nodes)
         files = opal_argv_split(mca_ras_simulator_component.topofiles, ',');
         if (opal_argv_count(files) != opal_argv_count(node_cnt)) {
             orte_show_help("help-ras-base.txt", "ras-sim:mismatch", true);
-            return ORTE_ERR_SILENT;
+            goto error_silent;
         }
     }
 #else
@@ -95,7 +98,7 @@ static int allocate(orte_job_t *jdata, opal_list_t *nodes)
     if (NULL == mca_ras_simulator_component.topofiles) {
         orte_show_help("help-ras-simulator.txt", 
                        "no hwloc support for topofiles", true);
-        return ORTE_ERR_SILENT;
+        goto error_silent;
     }
 #endif
 
@@ -125,13 +128,13 @@ static int allocate(orte_job_t *jdata, opal_list_t *nodes)
                 orte_show_help("help-ras-simulator.txt", 
                                "hwloc API fail", true, 
                                __FILE__, __LINE__, "hwloc_topology_init");
-                return ORTE_ERR_SILENT;
+                goto error_silent;
             }
             if (0 != hwloc_topology_set_xml(topo, files[n])) {
                 orte_show_help("help-ras-simulator.txt", 
                                "hwloc failed to load xml", true, files[n]);
                 hwloc_topology_destroy(topo);
-                return ORTE_ERR_SILENT;
+                goto error_silent;
             }
             /* since we are loading this from an external source, we have to
              * explicitly set a flag so hwloc sets things up correctly
@@ -141,14 +144,14 @@ static int allocate(orte_job_t *jdata, opal_list_t *nodes)
                                "hwloc API fail", true, 
                                __FILE__, __LINE__, "hwloc_topology_set_flags");
                 hwloc_topology_destroy(topo);
-                return ORTE_ERR_SILENT;
+                goto error_silent;
             }
             if (0 != hwloc_topology_load(topo)) {
                 orte_show_help("help-ras-simulator.txt", 
                                "hwloc API fail", true, 
                                __FILE__, __LINE__, "hwloc_topology_load");
                 hwloc_topology_destroy(topo);
-                return ORTE_ERR_SILENT;
+                goto error_silent;
             }
             /* remove the hostname from the topology. Unfortunately, hwloc
              * decided to add the source hostname to the "topology", thus
@@ -181,7 +184,10 @@ static int allocate(orte_job_t *jdata, opal_list_t *nodes)
             support->cpubind->set_thisproc_cpubind = mca_ras_simulator_component.have_cpubind;
             support->membind->set_thisproc_membind = mca_ras_simulator_component.have_membind;
             /* add it to our array */
-            opal_pointer_array_add(orte_node_topologies, topo);
+            t = OBJ_NEW(orte_topology_t);
+            t->topo = topo;
+            t->sig = opal_hwloc_base_get_topo_signature(topo);
+            opal_pointer_array_add(orte_node_topologies, t);
         }
 #endif
 
@@ -205,7 +211,30 @@ static int allocate(orte_job_t *jdata, opal_list_t *nodes)
     /* record the number of allocated nodes */
     orte_num_allocated_nodes = opal_list_get_size(nodes);
 
+    if (NULL != max_slot_cnt) {
+        opal_argv_free(max_slot_cnt);
+    }
+    if (NULL != slot_cnt) {
+        opal_argv_free(slot_cnt);
+    }
+    if (NULL != node_cnt) {
+        opal_argv_free(node_cnt);
+    }
+
     return ORTE_SUCCESS;
+
+error_silent:
+    if (NULL != max_slot_cnt) {
+        opal_argv_free(max_slot_cnt);
+    }
+    if (NULL != slot_cnt) {
+        opal_argv_free(slot_cnt);
+    }
+    if (NULL != node_cnt) {
+        opal_argv_free(node_cnt);
+    }
+    return ORTE_ERR_SILENT;
+
 }
 
 /*

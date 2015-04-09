@@ -12,7 +12,7 @@
  * Copyright (c) 2011-2012 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2011-2012 Los Alamos National Security, LLC.
  *                         All rights reserved.
- * Copyright (c) 2014      Intel, Inc. All rights reserved.
+ * Copyright (c) 2014-2015 Intel, Inc. All rights reserved.
  * $COPYRIGHT$
  * 
  * Additional copyrights may follow
@@ -153,10 +153,6 @@ void orte_rmaps_base_map_job(int fd, short args, void *cbdata)
         /* ranking was already handled, so just use it here */
         map->ranking = orte_rmaps_base.ranking;
 
-#if OPAL_HAVE_HWLOC
-        map->binding = opal_hwloc_binding_policy;
-#endif
-
         if (NULL != orte_rmaps_base.ppr) {
             map->ppr = strdup(orte_rmaps_base.ppr);
         }
@@ -231,14 +227,42 @@ void orte_rmaps_base_map_job(int fd, short args, void *cbdata)
         if (!ORTE_RANKING_POLICY_IS_SET(jdata->map->ranking)) {
             jdata->map->ranking = orte_rmaps_base.ranking;
         }
-#if OPAL_HAVE_HWLOC
-        if (!OPAL_BINDING_POLICY_IS_SET(jdata->map->binding)) {
-            jdata->map->binding = opal_hwloc_binding_policy;
-        }
-#endif
     }
 
 #if OPAL_HAVE_HWLOC
+    /* define the binding policy for this job - if the user specified one
+     * already (e.g., during the call to comm_spawn), then we don't
+     * override it */
+    if (!OPAL_BINDING_POLICY_IS_SET(jdata->map->binding)) {
+        /* if the user specified a default binding policy via
+         * MCA param, then we use it */
+        if (OPAL_BINDING_POLICY_IS_SET(opal_hwloc_binding_policy)) {
+            jdata->map->binding = opal_hwloc_binding_policy;
+        } else {
+            /* if nothing was specified, then we default to a policy
+             * based on number of procs and cpus_per_rank */
+            if (2 <= nprocs) {
+                if (1 < orte_rmaps_base.cpus_per_rank) {
+                    /* assigning multiple cpus to a rank implies threading,
+                     * so we only bind to the NUMA level */
+                    OPAL_SET_DEFAULT_BINDING_POLICY(jdata->map->binding, OPAL_BIND_TO_NUMA);
+                } else {
+                    /* for performance, bind to core */
+                    OPAL_SET_DEFAULT_BINDING_POLICY(jdata->map->binding, OPAL_BIND_TO_CORE);
+                }
+            } else {
+                if (1 < orte_rmaps_base.cpus_per_rank) {
+                    /* assigning multiple cpus to a rank implies threading,
+                     * so we only bind to the NUMA level */
+                    OPAL_SET_DEFAULT_BINDING_POLICY(jdata->map->binding, OPAL_BIND_TO_NUMA);
+                } else {
+                    /* for performance, bind to socket */
+                    OPAL_SET_DEFAULT_BINDING_POLICY(jdata->map->binding, OPAL_BIND_TO_SOCKET);
+                }
+            }
+        }
+    }
+    
     /* if we are not going to launch, then we need to set any
      * undefined topologies to match our own so the mapper
      * can operate
@@ -304,7 +328,9 @@ void orte_rmaps_base_map_job(int fd, short args, void *cbdata)
      * the map, then that's an error
      */
     if (!did_map || 0 == jdata->num_procs || 0 == jdata->map->num_nodes) {
-        orte_show_help("help-orte-rmaps-base.txt", "failed-map", true);
+        orte_show_help("help-orte-rmaps-base.txt", "failed-map", true,
+                       did_map ? "mapped" : "unmapped",
+                       jdata->num_procs, jdata->map->num_nodes);
         ORTE_ACTIVATE_JOB_STATE(jdata, ORTE_JOB_STATE_MAP_FAILED);
         OBJ_RELEASE(caddy);
         return;

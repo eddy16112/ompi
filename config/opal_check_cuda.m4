@@ -6,24 +6,27 @@ dnl                         Corporation.  All rights reserved.
 dnl Copyright (c) 2004-2005 The University of Tennessee and The University
 dnl                         of Tennessee Research Foundation.  All rights
 dnl                         reserved.
-dnl Copyright (c) 2004-2005 High Performance Computing Center Stuttgart, 
+dnl Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
 dnl                         University of Stuttgart.  All rights reserved.
 dnl Copyright (c) 2004-2005 The Regents of the University of California.
 dnl                         All rights reserved.
-dnl Copyright (c) 2006-2010 Cisco Systems, Inc.  All rights reserved.
+dnl Copyright (c) 2006-2015 Cisco Systems, Inc.  All rights reserved.
 dnl Copyright (c) 2007      Sun Microsystems, Inc.  All rights reserved.
 dnl Copyright (c) 2009      IBM Corporation.  All rights reserved.
 dnl Copyright (c) 2009      Los Alamos National Security, LLC.  All rights
 dnl                         reserved.
 dnl Copyright (c) 2009-2011 Oak Ridge National Labs.  All rights reserved.
 dnl Copyright (c) 2011-2014 NVIDIA Corporation.  All rights reserved.
+dnl Copyright (c) 2015      Research Organization for Information Science
+dnl                         and Technology (RIST). All rights reserved.
 dnl
 dnl $COPYRIGHT$
-dnl 
+dnl
 dnl Additional copyrights may follow
-dnl 
+dnl
 dnl $HEADER$
 dnl
+
 AC_DEFUN([OPAL_CHECK_CUDA],[
 #
 # Check to see if user wants CUDA support
@@ -42,7 +45,7 @@ AC_MSG_CHECKING([if --with-cuda is set])
 # macro as that would error out after not finding it in the first directory.
 # Note that anywhere CUDA aware code is in the Open MPI repository requires
 # us to make use of AC_REQUIRE to ensure this check has been done.
-AS_IF([test "$with_cuda" = "no" -o "x$with_cuda" = "x"],
+AS_IF([test "$with_cuda" = "no" || test "x$with_cuda" = "x"],
       [opal_check_cuda_happy="no"
        AC_MSG_RESULT([not set (--with-cuda=$with_cuda)])],
       [AS_IF([test "$with_cuda" = "yes"],
@@ -69,10 +72,12 @@ AS_IF([test "$with_cuda" = "no" -o "x$with_cuda" = "x"],
                             opal_cuda_incdir="$with_cuda/include"
                             AC_MSG_RESULT([found ($opal_cuda_incdir/cuda.h)])])])])])
 
-# We cannot have CUDA support without dlopen support.  Check for that and
-# error out if the user has also set --disable-dlopen.
-AS_IF([test "$enable_dlopen" = "no" -a "$opal_check_cuda_happy" = "yes"],
-    [AC_MSG_ERROR([--with-cuda cannot be used with --disable-dlopen.  Remove one of them and reconfigure.])])
+dnl We cannot have CUDA support without dlopen support.  HOWEVER, at
+dnl this point in configure, we can't know whether the DL framework
+dnl has been configured or not yet (it likely hasn't, since CUDA is a
+dnl common framework, and likely configured first).  So we have to
+dnl defer this check until later (see the OPAL_CHECK_CUDA_AFTER_OPAL_DL m4
+dnl macro, below).  :-(
 
 # If we have CUDA support, check to see if we have CUDA 4.1 support
 AS_IF([test "$opal_check_cuda_happy"="yes"],
@@ -138,4 +143,22 @@ AM_CONDITIONAL([OPAL_cuda_gdr_support], [test "x$CUDA_VERSION_60_OR_GREATER" = "
 AC_DEFINE_UNQUOTED([OPAL_CUDA_GDR_SUPPORT],$CUDA_VERSION_60_OR_GREATER,
                    [Whether we have CUDA GDR support available])
 
+])
+
+dnl
+dnl CUDA support requires DL support (it dynamically opens the CUDA
+dnl library at run time).  But we do not check for OPAL DL support
+dnl until lafter the initial OPAL_CHECK_CUDA is called.  So put the
+dnl CUDA+DL check in a separate macro that can be called after the DL MCA
+dnl framework checks in the top-level configure.ac.
+dnl
+AC_DEFUN([OPAL_CHECK_CUDA_AFTER_OPAL_DL],[
+
+    # We cannot have CUDA support without OPAL DL support.  Error out
+    # if the user wants CUDA but we do not have OPAL DL support.
+    AS_IF([test $OPAL_HAVE_DL_SUPPORT -eq 0 && \
+           test "$opal_check_cuda_happy" = "yes"],
+          [AC_MSG_WARN([--with-cuda was specified, but dlopen support is disabled.])
+           AC_MSG_WARN([You must reconfigure Open MPI with dlopen ("dl") support.])
+           AC_MSG_ERROR([Cannot continue.])])
 ])

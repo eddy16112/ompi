@@ -10,6 +10,7 @@
  * Copyright (c) 2004-2005 The Regents of the University of California.
  *                         All rights reserved.
  * Copyright (c) 2014      Intel, Inc. All rights reserved.
+ * Copyright (c) 2014-2015 Cisco Systems, Inc.  All rights reserved.
  * $COPYRIGHT$
  * 
  * Additional copyrights may follow
@@ -67,6 +68,18 @@ int mca_base_cmd_line_setup(opal_cmd_line_t *cmd)
             {"mca_base_param_file_prefix", '\0', "am", NULL, 1,
              NULL, OPAL_CMD_LINE_TYPE_STRING,
              "Aggregate MCA parameter set file list"
+            };
+        ret = opal_cmd_line_make_opt_mca(cmd, entry);
+        if (OPAL_SUCCESS != ret) {
+            return ret;
+        }
+    }
+
+    {
+        opal_cmd_line_init_t entry =
+            {"mca_base_envar_file_prefix", '\0', "tune", NULL, 1,
+             NULL, OPAL_CMD_LINE_TYPE_STRING,
+             "Application profile options file list"
             };
         ret = opal_cmd_line_make_opt_mca(cmd, entry);
         if (OPAL_SUCCESS != ret) {
@@ -162,14 +175,15 @@ static int process_arg(const char *param, const char *value,
              * to the process exiting */
             fprintf(stderr,
                     "---------------------------------------------------------------------------\n"
-                    "The following MCA parameter has been listed multiple times on the"
-                    "cmd line:\n\n"
+                    "The following MCA parameter has been listed multiple times on the\n"
+                    "command line:\n\n"
                     "  MCA param:   %s\n\n"
-                    "MCA parameters can only be listed once on a cmd line to ensure there\n"
-                    "is no ambiguity as to its value. Please correct the situation and\n"
+                    "MCA parameters can only be listed once on a command line to ensure there\n"
+                    "is no ambiguity as to its value.  Please correct the situation and\n"
                     "try again.\n"
                     "---------------------------------------------------------------------------\n",
                     param);
+            free(p1);
             return OPAL_ERROR;
         }
     }

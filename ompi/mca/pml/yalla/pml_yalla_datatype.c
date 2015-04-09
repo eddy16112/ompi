@@ -1,5 +1,8 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
 /*
  * Copyright (C) Mellanox Technologies Ltd. 2001-2011.  ALL RIGHTS RESERVED.
+ * Copyright (c) 2015      Los Alamos National Security, LLC. All rights
+ *                         reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -14,7 +17,7 @@
 static mca_pml_yalla_convertor_t *mca_pml_yalla_get_send_convertor(void *buf, size_t count,
                                                                    ompi_datatype_t *datatype)
 {
-    mca_pml_yalla_convertor_t *convertor = PML_YALLA_FREELIST_GET(&ompi_pml_yalla.convs);
+    mca_pml_yalla_convertor_t *convertor = (mca_pml_yalla_convertor_t *)PML_YALLA_FREELIST_GET(&ompi_pml_yalla.convs);
 
     convertor->datatype = datatype;
     OBJ_RETAIN(datatype);
@@ -27,7 +30,7 @@ static mca_pml_yalla_convertor_t *mca_pml_yalla_get_send_convertor(void *buf, si
 static mca_pml_yalla_convertor_t *mca_pml_yalla_get_recv_convertor(void *buf, size_t count,
                                                                    ompi_datatype_t *datatype)
 {
-    mca_pml_yalla_convertor_t *convertor = PML_YALLA_FREELIST_GET(&ompi_pml_yalla.convs);
+    mca_pml_yalla_convertor_t *convertor = (mca_pml_yalla_convertor_t *)PML_YALLA_FREELIST_GET(&ompi_pml_yalla.convs);
 
     convertor->datatype = datatype;
     OBJ_RETAIN(datatype);
@@ -157,7 +160,7 @@ void mca_pml_yalla_init_datatype(void)
 }
 
 OBJ_CLASS_INSTANCE(mca_pml_yalla_convertor_t,
-                   ompi_free_list_item_t,
+                   opal_free_list_item_t,
                    mca_pml_yalla_convertor_construct,
                    mca_pml_yalla_convertor_destruct);
 

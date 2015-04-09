@@ -112,64 +112,22 @@ static int rte_init(void)
     /* if I am a daemon, complete my setup using the
      * default procedure
      */
-    if (ORTE_PROC_IS_DAEMON) {
-        if (NULL != orte_node_regex) {
-            /* extract the nodes */
-            if (ORTE_SUCCESS != (ret = orte_regex_extract_node_names(orte_node_regex, &hosts))) {
-                error = "orte_regex_extract_node_names";
-                goto error;
-            }
-        }
-        if (ORTE_SUCCESS != (ret = orte_ess_base_orted_setup(hosts))) {
-            ORTE_ERROR_LOG(ret);
-            error = "orte_ess_base_orted_setup";
+    if (NULL != orte_node_regex) {
+        /* extract the nodes */
+        if (ORTE_SUCCESS != (ret = orte_regex_extract_node_names(orte_node_regex, &hosts))) {
+            error = "orte_regex_extract_node_names";
             goto error;
         }
-        opal_argv_free(hosts);
-        return ORTE_SUCCESS;
     }
-    
-    if (ORTE_PROC_IS_TOOL) {
-        /* otherwise, if I am a tool proc, use that procedure */
-        if (ORTE_SUCCESS != (ret = orte_ess_base_tool_setup())) {
-            ORTE_ERROR_LOG(ret);
-            error = "orte_ess_base_tool_setup";
-            goto error;
-        }
-        return ORTE_SUCCESS;
-        
-    }
-    
-    /* use the default procedure to finish my setup */
-    if (ORTE_SUCCESS != (ret = orte_ess_base_app_setup(true))) {
+    if (ORTE_SUCCESS != (ret = orte_ess_base_orted_setup(hosts))) {
         ORTE_ERROR_LOG(ret);
-        error = "orte_ess_base_app_setup";
+        error = "orte_ess_base_orted_setup";
         goto error;
     }
-    
-    /* setup process binding */
-    if (ORTE_SUCCESS != (ret = orte_ess_base_proc_binding())) {
-        error = "proc_binding";
-        goto error;
-    }
-
-    /* if we are an ORTE app - and not an MPI app - then
-     * we need to exchange our connection info here.
-     * MPI_Init has its own modex, so we don't need to do
-     * two of them. However, if we don't do a modex at all,
-     * then processes have no way to communicate
-     *
-     * NOTE: only do this when the process originally launches.
-     * Cannot do this on a restart as the rest of the processes
-     * in the job won't be executing this step, so we would hang
-     */
-    if (ORTE_PROC_IS_NON_MPI && !orte_do_not_barrier) {
-        opal_pmix.fence(NULL, 0);
-    }
-    
+    opal_argv_free(hosts);
     return ORTE_SUCCESS;
 
-error:
+ error:
     if (ORTE_ERR_SILENT != ret && !orte_report_silent_errors) {
         orte_show_help("help-orte-runtime.txt",
                        "orte_init:startup:internal-failure",
@@ -183,29 +141,10 @@ static int rte_finalize(void)
 {
     int ret;
 
-    /* if I am a daemon, finalize using the default procedure */
-    if (ORTE_PROC_IS_DAEMON) {
-        if (ORTE_SUCCESS != (ret = orte_ess_base_orted_finalize())) {
-            ORTE_ERROR_LOG(ret);
-        }
-        return ret;
-    } else if (ORTE_PROC_IS_TOOL) {
-        /* otherwise, if I am a tool proc, use that procedure */
-        if (ORTE_SUCCESS != (ret = orte_ess_base_tool_finalize())) {
-            ORTE_ERROR_LOG(ret);
-        }
-        /* as a tool, I didn't create a nidmap - so just return now */
-        return ret;
-    }
-
-    /* otherwise, I must be an application process
-     * use the default procedure to finish
-     */
-    if (ORTE_SUCCESS != (ret = orte_ess_base_app_finalize())) {
+    if (ORTE_SUCCESS != (ret = orte_ess_base_orted_finalize())) {
         ORTE_ERROR_LOG(ret);
     }
-
-    return ORTE_SUCCESS;
+    return ret;
 }
 
 static int env_set_name(void)
@@ -252,10 +191,6 @@ static int rte_ft_event(int state)
 {
     int ret, exit_status = ORTE_SUCCESS;
     orte_proc_type_t svtype;
-    orte_grpcomm_collective_t coll;
-
-    OBJ_CONSTRUCT(&coll, orte_grpcomm_collective_t);
-    coll.id = orte_process_info.snapc_init_barrier;
 
     /******** Checkpoint Prep ********/
     if(OPAL_CRS_CHECKPOINT == state) {
@@ -264,8 +199,7 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_snapc.ft_event(OPAL_CRS_CHECKPOINT))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
@@ -273,8 +207,7 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_routed.ft_event(OPAL_CRS_CHECKPOINT))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
@@ -282,8 +215,7 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_rml.ft_event(OPAL_CRS_CHECKPOINT))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
     }
     /******** Continue Recovery ********/
@@ -297,8 +229,7 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_rml.ft_event(OPAL_CRS_CONTINUE))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
@@ -306,8 +237,7 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_routed.ft_event(OPAL_CRS_CONTINUE))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
@@ -315,23 +245,15 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_snapc.ft_event(OPAL_CRS_CONTINUE))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
-        if( orte_cr_continue_like_restart ) {
+        if (opal_cr_continue_like_restart) {
             /*
              * Barrier to make all processes have been successfully restarted before
              * we try to remove some restart only files.
              */
-            if (ORTE_SUCCESS != (ret = orte_grpcomm.barrier(&coll))) {
-                opal_output(0, "ess:env: ft_event(%2d): Failed in orte_grpcomm.barrier (%d)",
-                            state, ret);
-                exit_status = ret;
-                goto cleanup;
-            }
-            coll.active = true;
-            ORTE_WAIT_FOR_COMPLETION(coll.active);
+            opal_pmix.fence(NULL, 0);
 
             if( orte_cr_flush_restart_files ) {
                 OPAL_OUTPUT_VERBOSE((1, orte_ess_base_framework.framework_output,
@@ -353,11 +275,6 @@ static int rte_ft_event(int state)
          */
 
         /*
-         * Clear nidmap and jmap
-         */
-        orte_util_nidmap_finalize();
-
-        /*
          * - Reset Contact information
          */
         if( ORTE_SUCCESS != (ret = env_set_name() ) ) {
@@ -369,8 +286,7 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_rml.ft_event(OPAL_CRS_RESTART))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
@@ -381,25 +297,14 @@ static int rte_ft_event(int state)
         orte_process_info.proc_type = ORTE_PROC_TOOL;
         if (ORTE_SUCCESS != (ret = orte_routed.finalize()) ) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
         orte_process_info.proc_type = svtype;
         if (ORTE_SUCCESS != (ret = orte_routed.initialize()) ) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
-        /*
-         * Group Comm - Clean out stale data
-         */
-        orte_grpcomm.finalize();
-        if (ORTE_SUCCESS != (ret = orte_grpcomm.init())) {
-            ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
-        }
         /* RHC: you can't pass NULL as the identifier - what you'll need to do is
          * close all open dstore handles, and then open the ones you need
          */
@@ -416,14 +321,12 @@ static int rte_ft_event(int state)
          */
         if (ORTE_SUCCESS != (ret = orte_plm.finalize())) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         if (ORTE_SUCCESS != (ret = orte_plm.init())) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
@@ -431,8 +334,7 @@ static int rte_ft_event(int state)
          */
         if (ORTE_SUCCESS != (ret = orte_rml.enable_comm())) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
@@ -440,22 +342,14 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_routed.ft_event(OPAL_CRS_RESTART))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
 
         /*
          * Barrier to make all processes have been successfully restarted before
          * we try to remove some restart only files.
          */
-        if (ORTE_SUCCESS != (ret = orte_grpcomm.barrier(&coll))) {
-            opal_output(0, "ess:env ft_event(%2d): Failed in orte_grpcomm.barrier (%d)",
-                        state, ret);
-            exit_status = ret;
-            goto cleanup;
-        }
-        coll.active = true;
-	ORTE_WAIT_FOR_COMPLETION(coll.active);
+        opal_pmix.fence(NULL, 0);
 
         if( orte_cr_flush_restart_files ) {
             OPAL_OUTPUT_VERBOSE((1, orte_ess_base_framework.framework_output,
@@ -487,8 +381,7 @@ static int rte_ft_event(int state)
          */
         if( ORTE_SUCCESS != (ret = orte_snapc.ft_event(OPAL_CRS_RESTART))) {
             ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
+            return ret;
         }
     }
     else if (OPAL_CRS_TERM == state ) {
@@ -498,8 +391,6 @@ static int rte_ft_event(int state)
         /* Error state = Nothing */
     }
 
-cleanup:
-    OBJ_DESTRUCT(&coll);
     return exit_status;
 }
 #endif

@@ -13,6 +13,8 @@
  * Copyright (c) 2011-2012 Los Alamos National Security, LLC.
  *                         All rights reserved. 
  * Copyright (c) 2013-2014 Intel, Inc.  All rights reserved.
+ * Copyright (c) 2015      Research Organization for Information Science
+ *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -99,9 +101,10 @@ int orte_plm_proxy_spawn(orte_job_t *jdata)
 {
     opal_buffer_t *buf;
     orte_plm_cmd_flag_t command;
-    int rc;
+    int rc, i;
     orte_proxy_spawn_t *ps;
-
+    orte_app_context_t *app;
+    
     OPAL_OUTPUT_VERBOSE((5, orte_plm_base_framework.framework_output,
                          "%s plm:base:proxy spawn child job",
                          ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
@@ -136,7 +139,18 @@ int orte_plm_proxy_spawn(orte_job_t *jdata)
         OBJ_RELEASE(buf);
         goto CLEANUP;
     }
-    
+
+    /* ensure that our prefix is passed along so that any launching daemons
+     * use the correct path */
+    for (i=0; i < jdata->apps->size; i++) {
+        if (NULL != (app = (orte_app_context_t*)opal_pointer_array_get_item(jdata->apps, i))) {
+            if (!orte_get_attribute(&app->attributes, ORTE_APP_PREFIX_DIR, NULL, OPAL_STRING)) {
+                orte_set_attribute(&app->attributes, ORTE_APP_PREFIX_DIR, ORTE_ATTR_GLOBAL,
+                                   opal_install_dirs.prefix, OPAL_STRING);
+            }
+        }
+    }
+
     /* pack the jdata object */
     if (ORTE_SUCCESS != (rc = opal_dss.pack(buf, &jdata, 1, ORTE_JOB))) {
         ORTE_ERROR_LOG(rc);
@@ -299,6 +313,7 @@ int orte_plm_base_fork_hnp(void)
     jobid = ORTE_DAEMON_JOBID(ORTE_PROC_MY_NAME->jobid);
     if (ORTE_SUCCESS != (rc = orte_util_convert_jobid_to_string(&param, jobid))) {
         ORTE_ERROR_LOG(rc);
+        free(cmd);
         return rc;
     }
     opal_argv_append(&argc, &argv, param);
@@ -352,6 +367,7 @@ int orte_plm_base_fork_hnp(void)
         exit(1);
         
     } else {
+        free(cmd);
         /* I am the parent - wait to hear something back and
          * report results
          */
@@ -418,11 +434,12 @@ int orte_plm_base_fork_hnp(void)
         if (ORTE_SUCCESS != (rc = orte_rml_base_parse_uris(orte_process_info.my_daemon_uri,
                                                            ORTE_PROC_MY_DAEMON, NULL))) {
             ORTE_ERROR_LOG(rc);
+            free(orted_uri);
             return rc;
         }
 
         /* likewise, since this is also the HNP, set that uri too */
-        orte_process_info.my_hnp_uri = strdup(orted_uri);
+        orte_process_info.my_hnp_uri = orted_uri;
         orte_rml.set_contact_info(orte_process_info.my_hnp_uri);
         if (ORTE_SUCCESS != (rc = orte_rml_base_parse_uris(orte_process_info.my_hnp_uri,
                                                            ORTE_PROC_MY_HNP, NULL))) {
@@ -445,7 +462,6 @@ int orte_plm_base_fork_hnp(void)
             return rc;
         }
         /* all done - report success */
-        free(orted_uri);
         return ORTE_SUCCESS;
     }
 }

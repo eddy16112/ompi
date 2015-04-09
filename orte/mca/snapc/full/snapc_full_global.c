@@ -524,13 +524,6 @@ int global_coord_end_ckpt(orte_snapc_base_quiesce_t *datum)
         }
 #endif
 
-        orte_grpcomm.finalize();
-        if (ORTE_SUCCESS != (ret = orte_grpcomm.init())) {
-            ORTE_ERROR_LOG(ret);
-            exit_status = ret;
-            goto cleanup;
-        }
-
         SNAPC_FULL_SET_TIMER(SNAPC_FULL_TIMER_ESTABLISH);
         if( ORTE_SUCCESS != (ret = orte_snapc_full_global_set_job_ckpt_info(current_global_jobid,
                                                                             ORTE_SNAPC_CKPT_STATE_FINISHED_LOCAL,
@@ -1995,6 +1988,26 @@ static int snapc_full_establish_snapshot_dir(bool empty_metadata)
         }
     }
 
+    /*
+     * Save the TUNE parameter used into the metadata file
+     */
+    if( 0 > (idx = mca_base_var_find("opal", "mca", "base", "envar_file_prefix")) ) {
+        opal_show_help("help-orte-restart.txt", "tune_param_not_found", true);
+    }
+    if( 0 < idx ) {
+        mca_base_var_get_value (idx, &value, NULL, NULL);
+
+        if (*value) {
+            orte_sstore.set_attr(global_snapshot.ss_handle,
+                                 SSTORE_METADATA_GLOBAL_TUNE_PARAM,
+                                 *value);
+
+            OPAL_OUTPUT_VERBOSE((10, mca_snapc_full_component.super.output_handle,
+                                 "Global) TUNE Parameter Preserved: %s",
+                                 *value));
+        }
+    }
+
     return ORTE_SUCCESS;
 }
 
@@ -2106,6 +2119,7 @@ static int orte_snapc_full_global_set_job_ckpt_info( orte_jobid_t jobid,
     orte_proc_t *proc = NULL;
     opal_list_item_t *item = NULL;
     size_t num_procs;
+    orte_grpcomm_signature_t *sig;
 
     /*
      * Update all Local Coordinators (broadcast operation)
@@ -2187,7 +2201,12 @@ static int orte_snapc_full_global_set_job_ckpt_info( orte_jobid_t jobid,
     free(state_str);
     state_str = NULL;
 
-    if( ORTE_SUCCESS != (ret = orte_grpcomm.xcast(ORTE_PROC_MY_NAME->jobid, buffer, ORTE_RML_TAG_SNAPC_FULL))) {
+    /* goes to all daemons */
+    sig = OBJ_NEW(orte_grpcomm_signature_t);
+    sig->signature = (orte_process_name_t*)malloc(sizeof(orte_process_name_t));
+    sig->signature[0].jobid = ORTE_PROC_MY_NAME->jobid;
+    sig->signature[0].vpid = ORTE_VPID_WILDCARD;
+    if (ORTE_SUCCESS != (ret = orte_grpcomm.xcast(sig, ORTE_RML_TAG_SNAPC_FULL, buffer))) {
         ORTE_ERROR_LOG(ret);
         exit_status = ret;
         goto cleanup;
@@ -2204,6 +2223,7 @@ static int orte_snapc_full_global_set_job_ckpt_info( orte_jobid_t jobid,
     }
 
     OBJ_RELEASE(buffer);
+    OBJ_RELEASE(sig);
 
     return exit_status;
 }

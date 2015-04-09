@@ -1,6 +1,6 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
 /*
- * Copyright (c) 2011-2014 Los Alamos National Security, LLC. All rights
+ * Copyright (c) 2011-2015 Los Alamos National Security, LLC. All rights
  *                         reserved.
  * $COPYRIGHT$
  *
@@ -18,9 +18,16 @@
 
 typedef union mca_btl_vader_fbox_hdr_t {
     struct {
+        /* NTH: on 32-bit platforms loading/unloading the header may be completed
+         * in multiple instructions. To ensure that seq is never loaded before tag
+         * and the tag is never read before seq put them in the same 32-bits of the
+         * header. */
+        /** message tag */
         uint16_t  tag;
-        uint16_t  size;
-        uint32_t  seq;
+        /** sequence number */
+        uint16_t  seq;
+        /** message size */
+        uint32_t  size;
     } data;
     uint64_t ival;
 } mca_btl_vader_fbox_hdr_t;
@@ -39,6 +46,13 @@ typedef union mca_btl_vader_fbox_hdr_t {
 #define MCA_BTL_VADER_FBOX_OFFSET_HBS(v) (!!((v) & MCA_BTL_VADER_FBOX_HB_MASK))
 
 void mca_btl_vader_poll_handle_frag (mca_btl_vader_hdr_t *hdr, mca_btl_base_endpoint_t *ep);
+
+static inline void mca_btl_vader_fbox_set_header (mca_btl_vader_fbox_hdr_t *hdr, uint16_t tag,
+                                                  uint16_t seq, uint32_t size)
+{
+    mca_btl_vader_fbox_hdr_t tmp = {.data = {.tag = tag, .seq = seq, .size = size}};
+    hdr->ival = tmp.ival;
+}
 
 /* attempt to reserve a contiguous segment from the remote ep */
 static inline unsigned char *mca_btl_vader_reserve_fbox (mca_btl_base_endpoint_t *ep, size_t size)
@@ -88,12 +102,10 @@ static inline unsigned char *mca_btl_vader_reserve_fbox (mca_btl_base_endpoint_t
         /* if this is the end of the buffer and the fragment doesn't fit then mark the remaining buffer space to
          * be skipped and check if the fragment can be written at the beginning of the buffer. */
         if (OPAL_UNLIKELY(buffer_free > 0 && buffer_free < size && start <= end)) {
-            mca_btl_vader_fbox_hdr_t tmp = {.data = {.size = buffer_free - sizeof (mca_btl_vader_fbox_hdr_t),
-                                                     .seq = ep->fbox_out.seq++, .tag = 0xff}};
-
             BTL_VERBOSE(("message will not fit in remaining buffer space. skipping to beginning"));
 
-            MCA_BTL_VADER_FBOX_HDR(dst)->ival = tmp.ival;
+            mca_btl_vader_fbox_set_header (MCA_BTL_VADER_FBOX_HDR(dst), 0xff, ep->fbox_out.seq++,
+                                           buffer_free - sizeof (mca_btl_vader_fbox_hdr_t));
 
             end = MCA_BTL_VADER_FBOX_ALIGNMENT;
             /* toggle the high bit */
@@ -114,11 +126,7 @@ static inline unsigned char *mca_btl_vader_reserve_fbox (mca_btl_base_endpoint_t
                  (unsigned int) size, end, start, end, hbs, buffer_free));
 
     /* write out part of the header now. the tag will be written when the data is available */
-    {
-        mca_btl_vader_fbox_hdr_t tmp = {.data = {.size = data_size, .tag = 0, .seq = ep->fbox_out.seq++}};
-
-        MCA_BTL_VADER_FBOX_HDR(dst)->ival = tmp.ival;
-    }
+    mca_btl_vader_fbox_set_header (MCA_BTL_VADER_FBOX_HDR(dst), 0, ep->fbox_out.seq++, data_size);
 
     end += size;
 
@@ -204,7 +212,7 @@ static inline bool mca_btl_vader_check_fboxes (void)
             /* the 0xff tag indicates we should skip the rest of the buffer */
             if (OPAL_LIKELY((0xfe & hdr.data.tag) != 0xfe)) {
                 mca_btl_base_segment_t segment;
-                mca_btl_base_descriptor_t desc = {.des_local = &segment, .des_local_count = 1};
+                mca_btl_base_descriptor_t desc = {.des_segments = &segment, .des_segment_count = 1};
                 const mca_btl_active_message_callback_t *reg =
                     mca_btl_base_active_message_trigger + hdr.data.tag;
 

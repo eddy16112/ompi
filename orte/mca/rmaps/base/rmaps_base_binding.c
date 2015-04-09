@@ -13,6 +13,8 @@
  * Copyright (c) 2011-2012 Los Alamos National Security, LLC.
  *                         All rights reserved.
  * Copyright (c) 2013-2014 Intel, Inc. All rights reserved
+ * Copyright (c) 2015      Research Organization for Information Science
+ *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -277,6 +279,7 @@ static int bind_downwards(orte_job_t *jdata,
         locale = NULL;
         if (!orte_get_attribute(&proc->attributes, ORTE_PROC_HWLOC_LOCALE, (void**)&locale, OPAL_PTR)) {
             orte_show_help("help-orte-rmaps-base.txt", "rmaps:no-locale", true, ORTE_NAME_PRINT(&proc->name));
+            hwloc_bitmap_free(totalcpuset);
             return ORTE_ERR_SILENT;
         }
         /* we don't know if the target is a direct child of this locale,
@@ -348,6 +351,10 @@ static int bind_downwards(orte_job_t *jdata,
             nxt_obj = trg_obj->next_cousin;
         } while (total_cpus < orte_rmaps_base.cpus_per_rank);
         hwloc_bitmap_list_asprintf(&cpu_bitmap, totalcpuset);
+        opal_output_verbose(5, orte_rmaps_base_framework.framework_output,
+                            "%s PROC %s BITMAP %s",
+                            ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                            ORTE_NAME_PRINT(&proc->name), cpu_bitmap);
         orte_set_attribute(&proc->attributes, ORTE_PROC_CPU_BITMAP, ORTE_ATTR_GLOBAL, cpu_bitmap, OPAL_STRING);
         if (NULL != cpu_bitmap) {
             free(cpu_bitmap);
@@ -674,13 +681,12 @@ int orte_rmaps_base_compute_bindings(orte_job_t *jdata)
     int i, rc;
     struct hwloc_topology_support *support;
     bool force_down = false;
-    hwloc_cpuset_t totalcpuset;
     int bind_depth, map_depth;
 
     opal_output_verbose(5, orte_rmaps_base_framework.framework_output,
-                        "mca:rmaps: compute bindings for job %s with policy %s",
+                        "mca:rmaps: compute bindings for job %s with policy %s[%x]",
                         ORTE_JOBID_PRINT(jdata->jobid),
-                        opal_hwloc_base_print_binding(jdata->map->binding));
+                        opal_hwloc_base_print_binding(jdata->map->binding), jdata->map->binding);
 
     map = ORTE_GET_MAPPING_POLICY(jdata->map->mapping);
     bind = OPAL_GET_BINDING_POLICY(jdata->map->binding);
@@ -829,7 +835,6 @@ int orte_rmaps_base_compute_bindings(orte_job_t *jdata)
      */
  execute:
     /* initialize */
-    totalcpuset = hwloc_bitmap_alloc();
 
     for (i=0; i < jdata->map->nodes->size; i++) {
         if (NULL == (node = (orte_node_t*)opal_pointer_array_get_item(jdata->map->nodes, i))) {
@@ -853,7 +858,6 @@ int orte_rmaps_base_compute_bindings(orte_job_t *jdata)
                     continue;
                 }
                 orte_show_help("help-orte-rmaps-base.txt", "rmaps:cpubind-not-supported", true, node->name);
-                hwloc_bitmap_free(totalcpuset);
                 return ORTE_ERR_SILENT;
             }
             /* check if topology supports membind - have to be careful here
@@ -872,7 +876,6 @@ int orte_rmaps_base_compute_bindings(orte_job_t *jdata)
                     membind_warned = true;
                 } else if (OPAL_HWLOC_BASE_MBFA_ERROR == opal_hwloc_base_mbfa) {
                     orte_show_help("help-orte-rmaps-base.txt", "rmaps:membind-not-supported-fatal", true, node->name);
-                    hwloc_bitmap_free(totalcpuset);
                     return ORTE_ERR_SILENT;
                 }
             }

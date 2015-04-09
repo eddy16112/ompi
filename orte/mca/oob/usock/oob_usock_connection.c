@@ -14,6 +14,8 @@
  * Copyright (c) 2009      Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2011      Oak Ridge National Labs.  All rights reserved.
  * Copyright (c) 2013-2014 Intel, Inc.  All rights reserved. 
+ * Copyright (c) 2014      Research Organization for Information Science
+ *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  * 
  * Additional copyrights may follow
@@ -56,6 +58,7 @@
 #include "opal/util/output.h"
 #include "opal/util/net.h"
 #include "opal/util/error.h"
+#include "opal/util/fd.h"
 #include "opal/class/opal_hash_table.h"
 #include "opal/mca/event/event.h"
 
@@ -64,7 +67,6 @@
 #include "orte/runtime/orte_globals.h"
 #include "orte/mca/errmgr/errmgr.h"
 #include "orte/mca/ess/ess.h"
-#include "orte/mca/routed/routed.h"
 #include "orte/runtime/orte_wait.h"
 
 #include "oob_usock.h"
@@ -102,6 +104,14 @@ static int usock_peer_create_socket(mca_oob_usock_peer_t* peer)
                     strerror(opal_socket_errno),
                     opal_socket_errno);
         return ORTE_ERR_UNREACH;
+    }
+    /* Set this fd to be close-on-exec so that subsequent children don't see it */
+    if (opal_fd_set_cloexec(peer->sd) != OPAL_SUCCESS) {
+        opal_output(0, "%s unable to set socket to CLOEXEC",
+                    ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
+        close(peer->sd);
+        peer->sd = -1;
+        return ORTE_ERROR;
     }
 
     /* setup event callbacks */
@@ -267,8 +277,9 @@ static int usock_peer_send_connect_ack(mca_oob_usock_peer_t* peer)
     mca_oob_usock_hdr_t hdr;
     int rc;
     size_t sdsize;
-    opal_sec_cred_t *cred;
-
+    char *cred;
+    size_t credsize;
+    
     opal_output_verbose(OOB_USOCK_DEBUG_CONNECT, orte_oob_base_framework.framework_output,
                         "%s SEND CONNECT ACK", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
 
@@ -281,17 +292,18 @@ static int usock_peer_send_connect_ack(mca_oob_usock_peer_t* peer)
     hdr.tag = 0;
 
     /* get our security credential*/
-    if (OPAL_SUCCESS != (rc = opal_sec.get_my_credential(opal_dstore_internal,
-                                                         (opal_identifier_t*)ORTE_PROC_MY_NAME, &cred))) {
+    if (OPAL_SUCCESS != (rc = opal_sec.get_my_credential(peer->auth_method,
+                                                         opal_dstore_internal,
+                                                         ORTE_PROC_MY_NAME, &cred, &credsize))) {
         ORTE_ERROR_LOG(rc);
         return rc;
     }
 
     /* set the number of bytes to be read beyond the header */
-    hdr.nbytes = strlen(orte_version_string) + 1 + cred->size;
+    hdr.nbytes = strlen(orte_version_string) + 1 + credsize;
 
     /* create a space for our message */
-    sdsize = (sizeof(hdr) + strlen(orte_version_string) + 1 + cred->size);
+    sdsize = (sizeof(hdr) + strlen(orte_version_string) + 1 + credsize);
     if (NULL == (msg = (char*)malloc(sdsize))) {
         return ORTE_ERR_OUT_OF_RESOURCE;
     }
@@ -300,13 +312,15 @@ static int usock_peer_send_connect_ack(mca_oob_usock_peer_t* peer)
     /* load the message */
     memcpy(msg, &hdr, sizeof(hdr));
     memcpy(msg+sizeof(hdr), orte_version_string, strlen(orte_version_string));
-    memcpy(msg+sizeof(hdr)+strlen(orte_version_string)+1, cred->credential, cred->size);
-
-
+    memcpy(msg+sizeof(hdr)+strlen(orte_version_string)+1, cred, credsize);
+    free(cred);
+    
     if (ORTE_SUCCESS != usock_peer_send_blocking(peer, peer->sd, msg, sdsize)) {
         ORTE_ERROR_LOG(ORTE_ERR_UNREACH);
+        free(msg);
         return ORTE_ERR_UNREACH;
     }
+    free(msg);
     return ORTE_SUCCESS;
 }
 
@@ -474,7 +488,8 @@ int mca_oob_usock_peer_recv_connect_ack(mca_oob_usock_peer_t* pr, int sd,
     char *msg;
     char *version;
     int rc, cmpval;
-    opal_sec_cred_t creds;
+    char *cred;
+    size_t credsize;
     mca_oob_usock_peer_t *peer;
     mca_oob_usock_hdr_t hdr;
     uint64_t *ui64;
@@ -654,9 +669,9 @@ int mca_oob_usock_peer_recv_connect_ack(mca_oob_usock_peer_t* pr, int sd,
                         ORTE_NAME_PRINT(&peer->name));
 
     /* check security token */
-    creds.credential = (char*)(msg + strlen(version) + 1);
-    creds.size = hdr.nbytes - strlen(version) - 1;
-    if (OPAL_SUCCESS != (rc = opal_sec.authenticate(&creds))) {
+    cred = (char*)(msg + strlen(version) + 1);
+    credsize = hdr.nbytes - strlen(version) - 1;
+    if (OPAL_SUCCESS != (rc = opal_sec.authenticate(cred, credsize, &peer->auth_method))) {
         ORTE_ERROR_LOG(rc);
     }
     free(msg);
@@ -702,9 +717,6 @@ static void usock_peer_connected(mca_oob_usock_peer_t* peer)
         peer->timer_ev_active = false;
     }
     peer->state = MCA_OOB_USOCK_CONNECTED;
-
-    /* update the route */
-    orte_routed.update_route(&peer->name, &peer->name);
 
     /* initiate send of first message on queue */
     if (NULL == peer->send_msg) {

@@ -101,7 +101,6 @@ static void mca_coll_hcoll_module_destruct(mca_coll_hcoll_module_t *hcoll_module
         hcoll_destroy_context(hcoll_module->hcoll_context,
                               (rte_grp_handle_t)hcoll_module->comm,
                               &context_destroyed);
-        assert(context_destroyed);
     }
     mca_coll_hcoll_module_clear(hcoll_module);
 }
@@ -186,11 +185,11 @@ static int mca_coll_hcoll_module_enable(mca_coll_base_module_t *module,
 
 int mca_coll_hcoll_progress(void)
 {
-    if (!ompi_mpi_finalized){
-        (*hcoll_progress_fn)();
-    } else {
+    if (ompi_mpi_finalized){
         hcoll_rte_p2p_disabled_notify();
     }
+
+    (*hcoll_progress_fn)();
     return OMPI_SUCCESS;
 }
 

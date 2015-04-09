@@ -96,13 +96,6 @@ void* mca_mpool_sm_alloc(
 #endif
     }
 
-#if OPAL_CUDA_SUPPORT
-    if ((flags & MCA_MPOOL_FLAGS_CUDA_REGISTER_MEM) && (NULL != mseg.mbs_start_addr)) {
-        mca_common_cuda_register(mseg.mbs_start_addr, size,
-                                 mpool->mpool_component->mpool_version.mca_component_name);
-    }
-#endif
-
     return mseg.mbs_start_addr;
 }
 
@@ -180,12 +173,15 @@ int mca_mpool_sm_ft_event(int state) {
         asprintf( &file_name, "%s"OPAL_PATH_SEP"shared_mem_pool.%s",
                   opal_process_info.job_session_dir,
                   opal_proc_local_get()->proc_hostname );
+        /* Disabled to get FT code compiled again
+         * TODO: FIXIT soon
         orte_sstore.set_attr(orte_sstore_handle_current, SSTORE_METADATA_LOCAL_TOUCH, file_name);
+         */
         free(file_name);
         file_name = NULL;
     }
     else if(OPAL_CRS_CONTINUE == state) {
-        if(orte_cr_continue_like_restart) {
+        if (opal_cr_continue_like_restart) {
             /* Find the sm module */
             self_module = mca_mpool_base_module_lookup("sm");
             self_sm_module = (mca_mpool_sm_module_t*) self_module;

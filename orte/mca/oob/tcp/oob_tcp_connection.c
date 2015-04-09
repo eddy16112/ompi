@@ -13,8 +13,8 @@
  *                         All rights reserved.
  * Copyright (c) 2009-2014 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2011      Oak Ridge National Labs.  All rights reserved.
- * Copyright (c) 2013-2014 Intel, Inc.  All rights reserved.
- * Copyright (c) 2014      Research Organization for Information Science
+ * Copyright (c) 2013-2015 Intel, Inc.  All rights reserved.
+ * Copyright (c) 2014-2015 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  * 
@@ -57,6 +57,7 @@
 #include "opal/mca/sec/sec.h"
 #include "opal/util/output.h"
 #include "opal/util/net.h"
+#include "opal/util/fd.h"
 #include "opal/util/error.h"
 #include "opal/class/opal_hash_table.h"
 #include "opal/mca/event/event.h"
@@ -97,7 +98,6 @@ static int tcp_peer_create_socket(mca_oob_tcp_peer_t* peer)
                          ORTE_NAME_PRINT(&(peer->name))));
     
     peer->sd = socket(AF_INET, SOCK_STREAM, 0);
-
     if (peer->sd < 0) {
         opal_output(0, "%s-%s tcp_peer_create_socket: socket() failed: %s (%d)\n",
                     ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
@@ -105,6 +105,15 @@ static int tcp_peer_create_socket(mca_oob_tcp_peer_t* peer)
                     strerror(opal_socket_errno),
                     opal_socket_errno);
         return ORTE_ERR_UNREACH;
+    }
+
+    /* Set this fd to be close-on-exec so that any subsequent children don't see it */
+    if (opal_fd_set_cloexec(peer->sd) != OPAL_SUCCESS) {
+        opal_output(0, "%s unable to set socket to CLOEXEC",
+                    ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
+        close(peer->sd);
+        peer->sd = -1;
+        return ORTE_ERROR;
     }
 
     /* setup socket options */
@@ -249,11 +258,32 @@ void mca_oob_tcp_peer_try_connect(int fd, short args, void *cbdata)
             /* connection succeeded */
             addr->retries = 0;
             connected = true;
+            peer->num_retries = 0;
             break;
         }
     }
 
     if (!connected) {
+        /* it could be that the intended recipient just hasn't
+         * started yet. if requested, wait awhile and try again
+         * unless/until we hit the maximum number of retries */
+        if (0 < mca_oob_tcp_component.retry_delay) {
+            if (mca_oob_tcp_component.max_recon_attempts < 0 ||
+                peer->num_retries < mca_oob_tcp_component.max_recon_attempts) {
+                struct timeval tv;
+                /* reset the addr states */
+                OPAL_LIST_FOREACH(addr, &peer->addrs, mca_oob_tcp_addr_t) {
+                    addr->state = MCA_OOB_TCP_UNCONNECTED;
+                    addr->retries = 0;
+                }
+                /* give it awhile and try again */
+                tv.tv_sec = mca_oob_tcp_component.retry_delay;
+                tv.tv_usec = 0;
+                ++peer->num_retries;
+                ORTE_RETRY_TCP_CONN_STATE(peer, mca_oob_tcp_peer_try_connect, &tv);
+                goto cleanup;
+            }
+        }
         /* no address succeeded, so we cannot reach this peer */
         peer->state = MCA_OOB_TCP_FAILED;
         host = orte_get_proc_hostname(&(peer->name));
@@ -346,8 +376,9 @@ static int tcp_peer_send_connect_ack(mca_oob_tcp_peer_t* peer)
     mca_oob_tcp_hdr_t hdr;
     int rc;
     size_t sdsize;
-    opal_sec_cred_t *cred;
-
+    char *cred;
+    size_t credsize;
+    
     opal_output_verbose(OOB_TCP_DEBUG_CONNECT, orte_oob_base_framework.framework_output,
                         "%s SEND CONNECT ACK", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
 
@@ -358,18 +389,24 @@ static int tcp_peer_send_connect_ack(mca_oob_tcp_peer_t* peer)
     hdr.tag = 0;
 
     /* get our security credential*/
-    if (OPAL_SUCCESS != (rc = opal_sec.get_my_credential(opal_dstore_internal,
-                                                         (opal_identifier_t*)ORTE_PROC_MY_NAME, &cred))) {
+    if (OPAL_SUCCESS != (rc = opal_sec.get_my_credential(peer->auth_method,
+                                                         opal_dstore_internal,
+                                                         ORTE_PROC_MY_NAME,
+                                                         &cred, &credsize))) {
         ORTE_ERROR_LOG(rc);
         return rc;
     }
-
+    opal_output_verbose(OOB_TCP_DEBUG_CONNECT, orte_oob_base_framework.framework_output,
+                        "%s SENDING CREDENTIAL OF SIZE %lu",
+                        ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                        (unsigned long)credsize);
+    
     /* set the number of bytes to be read beyond the header */
-    hdr.nbytes = strlen(orte_version_string) + 1 + cred->size;
+    hdr.nbytes = strlen(orte_version_string) + 1 + credsize;
     MCA_OOB_TCP_HDR_HTON(&hdr);
 
     /* create a space for our message */
-    sdsize = (sizeof(hdr) + strlen(orte_version_string) + 1 + cred->size);
+    sdsize = sizeof(hdr) + strlen(orte_version_string) + 1 + credsize;
     if (NULL == (msg = (char*)malloc(sdsize))) {
         return ORTE_ERR_OUT_OF_RESOURCE;
     }
@@ -378,8 +415,12 @@ static int tcp_peer_send_connect_ack(mca_oob_tcp_peer_t* peer)
     /* load the message */
     memcpy(msg, &hdr, sizeof(hdr));
     memcpy(msg+sizeof(hdr), orte_version_string, strlen(orte_version_string));
-    memcpy(msg+sizeof(hdr)+strlen(orte_version_string)+1, cred->credential, cred->size);
-
+    memcpy(msg+sizeof(hdr)+strlen(orte_version_string)+1, cred, credsize);
+    /* clear the memory */
+    if (NULL != cred) {
+        free(cred);
+    }
+    
     /* send it */
     if (ORTE_SUCCESS != tcp_peer_send_blocking(peer->sd, msg, sdsize)) {
         free(msg);
@@ -566,11 +607,10 @@ static bool retry(mca_oob_tcp_peer_t* peer, int sd, bool fatal)
             opal_event_del(&peer->recv_event);
             peer->recv_ev_active = false;
         }
-        if (0 < peer->sd) {
+        if (0 <= peer->sd) {
             CLOSE_THE_SOCKET(peer->sd);
             peer->sd = -1;
         }
-        CLOSE_THE_SOCKET(peer->sd);
         if (OPAL_VALUE1_GREATER == cmpval) {
             /* force the other end to retry the connection */
             peer->state = MCA_OOB_TCP_UNCONNECTED;
@@ -608,7 +648,8 @@ int mca_oob_tcp_peer_recv_connect_ack(mca_oob_tcp_peer_t* pr,
     char *msg;
     char *version;
     int rc;
-    opal_sec_cred_t creds;
+    char *cred;
+    size_t credsize;
     mca_oob_tcp_hdr_t hdr;
     mca_oob_tcp_peer_t *peer;
     uint64_t *ui64;
@@ -789,10 +830,16 @@ int mca_oob_tcp_peer_recv_connect_ack(mca_oob_tcp_peer_t* pr,
                         ORTE_NAME_PRINT(&peer->name));
 
     /* check security token */
-    creds.credential = (char*)(msg + strlen(version) + 1);
-    creds.size = hdr.nbytes - strlen(version) - 1;
-    if (OPAL_SUCCESS != (rc = opal_sec.authenticate(&creds))) {
-        ORTE_ERROR_LOG(rc);
+    cred = (char*)(msg + strlen(version) + 1);
+    credsize = hdr.nbytes - strlen(version) - 1;
+    if (OPAL_SUCCESS != (rc = opal_sec.authenticate(cred, credsize, &peer->auth_method))) {
+        char *hostname;
+        hostname = orte_get_proc_hostname(&peer->name);
+        orte_show_help("help-oob-tcp.txt", "authent-fail", true,
+                       (NULL == hostname) ? "unknown" : hostname,
+                       orte_process_info.nodename);
+        peer->state = MCA_OOB_TCP_FAILED;
+        mca_oob_tcp_peer_close(peer);
         free(msg);
         return ORTE_ERR_CONNECTION_REFUSED;
     }
@@ -1025,11 +1072,21 @@ void mca_oob_tcp_peer_dump(mca_oob_tcp_peer_t* peer, const char* msg)
     opal_socklen_t addrlen = sizeof(struct sockaddr_storage);
     opal_socklen_t optlen;
                                                                                                             
-    getsockname(peer->sd, (struct sockaddr*)&inaddr, &addrlen);
-    snprintf(src, sizeof(src), "%s", opal_net_get_hostname((struct sockaddr*) &inaddr));
-    getpeername(peer->sd, (struct sockaddr*)&inaddr, &addrlen);
-    snprintf(dst, sizeof(dst), "%s", opal_net_get_hostname((struct sockaddr*) &inaddr));
-                                                                                                            
+    if (getsockname(peer->sd, (struct sockaddr*)&inaddr, &addrlen) < 0) {
+        opal_output(0, "tcp_peer_dump: getsockname: %s (%d)\n", 
+                    strerror(opal_socket_errno),
+                    opal_socket_errno);
+    } else {
+        snprintf(src, sizeof(src), "%s", opal_net_get_hostname((struct sockaddr*) &inaddr));
+    }
+    if (getpeername(peer->sd, (struct sockaddr*)&inaddr, &addrlen) < 0) {
+        opal_output(0, "tcp_peer_dump: getpeername: %s (%d)\n", 
+                    strerror(opal_socket_errno),
+                    opal_socket_errno);
+    } else {
+        snprintf(dst, sizeof(dst), "%s", opal_net_get_hostname((struct sockaddr*) &inaddr));
+    }
+
     if ((flags = fcntl(peer->sd, F_GETFL, 0)) < 0) {
         opal_output(0, "tcp_peer_dump: fcntl(F_GETFL) failed: %s (%d)\n",
                     strerror(opal_socket_errno),

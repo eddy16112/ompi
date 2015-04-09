@@ -13,6 +13,9 @@
  * Copyright (c) 2007-2013 Los Alamos National Security, LLC.  All rights
  *                         reserved. 
  * Copyright (c) 2011-2013 Cisco Systems, Inc.  All rights reserved.
+ * Copyright (c) 2015      Research Organization for Information Science
+ *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2015      Intel, Inc. All rights reserved.
  * $COPYRIGHT$
  * 
  * Additional copyrights may follow
@@ -303,31 +306,7 @@ void kill_procs(void) {
 
     /* get the name of the user */
     uid = getuid();
-#if OPAL_ENABLE_GETPWUID
-    {
-        struct passwd *pwdent;
-
-#ifdef HAVE_GETPWUID
-        pwdent = getpwuid(uid);
-        if (NULL == pwdent) {
-            /* this indicates a problem with the passwd system,
-             * so pretty-print a message just for info
-             */
-            orte_show_help("help-orte-runtime.txt",
-                           "orte:session:dir:nopwname", true);
-        }
-#else
-        pwdent = NULL;
-#endif
-        if (NULL != pwdent) {
-            this_user = strdup(pwdent->pw_name);
-        } else {
-            asprintf(&this_user, "%d", uid);
-        }
-    }
-#else
     asprintf(&this_user, "%d", uid);
-#endif
     
     /*
      * There is a race condition here.  The problem is that we are looking
@@ -351,6 +330,7 @@ void kill_procs(void) {
      */
     if (NULL == (inputline = orte_getline(psfile))) {
         free(this_user);
+        pclose(psfile);
         return;
     } 
     free(inputline);  /* dump the header line */
@@ -441,5 +421,6 @@ void kill_procs(void) {
 	free(procname);
     }
     free(this_user);
+    pclose(psfile);
     return;
 }

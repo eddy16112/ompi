@@ -325,7 +325,8 @@ $constants->{MPI_ERR_RMA_RANGE} = 68;
 $constants->{MPI_ERR_RMA_ATTACH} = 69;
 $constants->{MPI_ERR_RMA_FLAVOR} = 70;
 $constants->{MPI_ERR_RMA_SHARED} = 71;
-$constants->{MPI_ERR_LASTCODE} = $constants->{MPI_ERR_RMA_SHARED};
+$constants->{MPI_T_ERR_INVALID} = 72;
+$constants->{MPI_ERR_LASTCODE} = 92;
 
 $constants->{MPI_ERR_SYSRESOURCE} = -2;
 
@@ -355,6 +356,18 @@ $constants->{MPI_COMBINER_RESIZED} = 17;
 $constants->{MPI_COMBINER_HINDEXED_BLOCK} = 18;
 
 $constants->{MPI_COMM_TYPE_SHARED} = 0;
+$constants->{OMPI_COMM_TYPE_HWTHREAD} = 1;
+$constants->{OMPI_COMM_TYPE_CORE} = 2;
+$constants->{OMPI_COMM_TYPE_L1CACHE} = 3;
+$constants->{OMPI_COMM_TYPE_L2CACHE} = 4;
+$constants->{OMPI_COMM_TYPE_L3CACHE} = 5;
+$constants->{OMPI_COMM_TYPE_SOCKET} = 6;
+$constants->{OMPI_COMM_TYPE_NUMA} = 7;
+$constants->{OMPI_COMM_TYPE_NODE} = 0;
+$constants->{OMPI_COMM_TYPE_BOARD} = 8;
+$constants->{OMPI_COMM_TYPE_HOST} = 9;
+$constants->{OMPI_COMM_TYPE_CU} = 10;
+$constants->{OMPI_COMM_TYPE_CLUSTER} = 11;
 
 #----------------------------------------------------------------------------
 

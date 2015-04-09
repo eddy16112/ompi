@@ -1,9 +1,12 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
 /*
  * Copyright (c) 2010-2011 Oracle and/or its affiliates.  All rights reserved.
  * Copyright (c) 2011      NVIDIA Corporation.  All rights reserved.
- * Copyright (c) 2012      Los Alamos National Security, LLC.  All rights
+ * Copyright (c) 2012-2015 Los Alamos National Security, LLC.  All rights
  *                         reserved. 
  * Copyright (c) 2013      NVIDIA Corporation.  All rights reserved.
+ * Copyright (c) 2014      Research Organization for Information Science
+ *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -151,8 +154,8 @@ void mca_btl_openib_handle_endpoint_error(mca_btl_openib_module_t *openib_btl,
     if (NULL != btlname) free(btlname);
 
     /* Since we believe we have done a send, read or write, then the
-     * des_local fields should have valid data. */
-    assert(des->des_local != NULL);
+     * des_segments fields should have valid data. */
+    assert(des->des_segments != NULL);
 
     /* If the endpoint is not yet in the MCA_BTL_IB_CLOSED state, then
      * change the status.  Since this connection was mapped out in the
@@ -373,15 +376,15 @@ void btl_openib_handle_failover_control_messages(mca_btl_openib_control_header_t
                         opal_output_verbose(20, mca_btl_openib_component.verbose_failover,
                                             "IB: rank=%d, control message (remote=%d), "
                                             "moved local head by one (new=%d)",
-                                            opal_process_name_vpid(OPAL_PROC_MY_NAME),
-                                            opal_process_name_vpid(newep->endpoint_proc->proc_opal->proc_name),
+                                            OPAL_PROC_MY_NAME.vpid,
+                                            newep->endpoint_proc->proc_opal->proc_name.vpid,
                                             newep->eager_rdma_local.head);
                     } else {
                         opal_output_verbose(20, mca_btl_openib_component.verbose_failover,
                                             "IB: rank=%d, control message (remote=%d), "
                                             "did not move local head by one (still=%d)",
-                                            opal_process_name_vpid(OPAL_PROC_MY_NAME),
-                                            opal_process_name_vpid(newep->endpoint_proc->proc_opal->proc_name),
+                                            OPAL_PROC_MY_NAME.vpid,
+                                            newep->endpoint_proc->proc_opal->proc_name.vpid,
                                             newep->eager_rdma_local.head);
                     }
                 }
@@ -676,16 +679,16 @@ static void mca_btl_openib_endpoint_notify(mca_btl_base_endpoint_t* endpoint, ui
     to_base_frag(frag)->base.des_cbdata = NULL;
     to_base_frag(frag)->base.des_flags |= MCA_BTL_DES_FLAGS_PRIORITY|MCA_BTL_DES_SEND_ALWAYS_CALLBACK;
     to_base_frag(frag)->base.order = mca_btl_openib_component.credits_qp;
-    to_base_frag(frag)->segment.base.seg_len =
+    to_base_frag(frag)->segment.seg_len =
         sizeof(mca_btl_openib_broken_connection_header_t);
     to_com_frag(frag)->endpoint = newep;
 
     frag->hdr->tag = MCA_BTL_TAG_IB;
-    bc_hdr = (mca_btl_openib_broken_connection_header_t*)to_base_frag(frag)->segment.base.seg_addr.pval;
+    bc_hdr = (mca_btl_openib_broken_connection_header_t*)to_base_frag(frag)->segment.seg_addr.pval;
     bc_hdr->control.type = type;
     bc_hdr->lid = endpoint->endpoint_btl->port_info.lid;
     bc_hdr->subnet_id = endpoint->endpoint_btl->port_info.subnet_id;
-    bc_hdr->vpid = opal_process_name_vpid(OPAL_PROC_MY_NAME);
+    bc_hdr->vpid = OPAL_PROC_MY_NAME.vpid;
     bc_hdr->index = index;
 
     if(newep->nbo) {
@@ -718,10 +721,10 @@ static void dump_local_rdma_frags(mca_btl_openib_endpoint_t * endpoint) {
 
         frag->hdr = (mca_btl_openib_header_t*)(((char*)frag->ftr) -
                size + sizeof(mca_btl_openib_footer_t));
-        to_base_frag(frag)->segment.base.seg_addr.pval =
+        to_base_frag(frag)->segment.seg_addr.pval =
                ((unsigned char* )frag->hdr) + sizeof(mca_btl_openib_header_t);
 
-        chdr = to_base_frag(frag)->segment.base.seg_addr.pval;
+        chdr = to_base_frag(frag)->segment.seg_addr.pval;
         if ((MCA_BTL_TAG_IB == frag->hdr->tag) &&
             (MCA_BTL_OPENIB_CONTROL_CREDITS == chdr->type)) {
             opal_output(0, "tag[%d] is credit message", i);
@@ -740,7 +743,7 @@ void mca_btl_openib_dump_all_local_rdma_frags(mca_btl_openib_device_t *device) {
     mca_btl_openib_endpoint_t* endpoint;
 
     c = device->eager_rdma_buffers_count;
-    opal_output(0, "rank=%d, device=%s", opal_process_name_vpid(OPAL_PROC_MY_NAME), device->ib_dev->name);
+    opal_output(0, "rank=%d, device=%s", OPAL_PROC_MY_NAME.vpid, device->ib_dev->name);
 
     for(i = 0; i < c; i++) {
         endpoint = device->eager_rdma_buffers[i];

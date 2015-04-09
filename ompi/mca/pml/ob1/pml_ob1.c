@@ -14,7 +14,7 @@
  * Copyright (c) 2006-2008 University of Houston.  All rights reserved.
  * Copyright (c) 2009-2010 Oracle and/or its affiliates.  All rights reserved
  * Copyright (c) 2011      Sandia National Laboratories. All rights reserved.
- * Copyright (c) 2011-2012 Los Alamos National Security, LLC. All rights
+ * Copyright (c) 2011-2015 Los Alamos National Security, LLC. All rights
  *                         reserved.
  * Copyright (c) 2012 Cisco Systems, Inc.  All rights reserved.
  * $COPYRIGHT$
@@ -40,6 +40,7 @@
 #include "ompi/mca/pml/base/base.h"
 #include "ompi/mca/pml/base/base.h"
 #include "ompi/mca/bml/base/base.h"
+#include "opal/mca/pmix/pmix.h"
 #include "ompi/runtime/ompi_cr.h"
 
 #include "pml_ob1.h"
@@ -98,53 +99,53 @@ int mca_pml_ob1_enable(bool enable)
     OBJ_CONSTRUCT(&mca_pml_ob1.lock, opal_mutex_t);
 
     /* fragments */
-    OBJ_CONSTRUCT(&mca_pml_ob1.rdma_frags, ompi_free_list_t);
-    ompi_free_list_init_new( &mca_pml_ob1.rdma_frags,
-                         sizeof(mca_pml_ob1_rdma_frag_t),
-                         opal_cache_line_size,
-                         OBJ_CLASS(mca_pml_ob1_rdma_frag_t),
-                         0,opal_cache_line_size,
-                         mca_pml_ob1.free_list_num,
-                         mca_pml_ob1.free_list_max,
-                         mca_pml_ob1.free_list_inc,
-                         NULL );
+    OBJ_CONSTRUCT(&mca_pml_ob1.rdma_frags, opal_free_list_t);
+    opal_free_list_init ( &mca_pml_ob1.rdma_frags,
+                          sizeof(mca_pml_ob1_rdma_frag_t),
+                          opal_cache_line_size,
+                          OBJ_CLASS(mca_pml_ob1_rdma_frag_t),
+                          0,opal_cache_line_size,
+                          mca_pml_ob1.free_list_num,
+                          mca_pml_ob1.free_list_max,
+                          mca_pml_ob1.free_list_inc,
+                          NULL, 0, NULL, NULL, NULL);
                                                                                                             
-    OBJ_CONSTRUCT(&mca_pml_ob1.recv_frags, ompi_free_list_t);
+    OBJ_CONSTRUCT(&mca_pml_ob1.recv_frags, opal_free_list_t);
 
-    ompi_free_list_init_new( &mca_pml_ob1.recv_frags,
-                         sizeof(mca_pml_ob1_recv_frag_t) + mca_pml_ob1.unexpected_limit,
-                         opal_cache_line_size,
-                         OBJ_CLASS(mca_pml_ob1_recv_frag_t),
-                         0,opal_cache_line_size,
-                         mca_pml_ob1.free_list_num,
-                         mca_pml_ob1.free_list_max,
-                         mca_pml_ob1.free_list_inc,
-                         NULL );
+    opal_free_list_init ( &mca_pml_ob1.recv_frags,
+                          sizeof(mca_pml_ob1_recv_frag_t) + mca_pml_ob1.unexpected_limit,
+                          opal_cache_line_size,
+                          OBJ_CLASS(mca_pml_ob1_recv_frag_t),
+                          0,opal_cache_line_size,
+                          mca_pml_ob1.free_list_num,
+                          mca_pml_ob1.free_list_max,
+                          mca_pml_ob1.free_list_inc,
+                          NULL, 0, NULL, NULL, NULL);
                                                                                                             
-    OBJ_CONSTRUCT(&mca_pml_ob1.pending_pckts, ompi_free_list_t);
-    ompi_free_list_init_new( &mca_pml_ob1.pending_pckts,
-                         sizeof(mca_pml_ob1_pckt_pending_t),
-                         opal_cache_line_size,
-                         OBJ_CLASS(mca_pml_ob1_pckt_pending_t),
-                         0,opal_cache_line_size,
-                         mca_pml_ob1.free_list_num,
-                         mca_pml_ob1.free_list_max,
-                         mca_pml_ob1.free_list_inc,
-                         NULL );
+    OBJ_CONSTRUCT(&mca_pml_ob1.pending_pckts, opal_free_list_t);
+    opal_free_list_init ( &mca_pml_ob1.pending_pckts,
+                          sizeof(mca_pml_ob1_pckt_pending_t),
+                          opal_cache_line_size,
+                          OBJ_CLASS(mca_pml_ob1_pckt_pending_t),
+                          0,opal_cache_line_size,
+                          mca_pml_ob1.free_list_num,
+                          mca_pml_ob1.free_list_max,
+                          mca_pml_ob1.free_list_inc,
+                          NULL, 0, NULL, NULL, NULL);
 
 
-    OBJ_CONSTRUCT(&mca_pml_ob1.buffers, ompi_free_list_t);
-    OBJ_CONSTRUCT(&mca_pml_ob1.send_ranges, ompi_free_list_t);
-    ompi_free_list_init_new( &mca_pml_ob1.send_ranges,
-                         sizeof(mca_pml_ob1_send_range_t) +
-                         (mca_pml_ob1.max_send_per_range - 1) * sizeof(mca_pml_ob1_com_btl_t),
-                         opal_cache_line_size,
-                         OBJ_CLASS(mca_pml_ob1_send_range_t),
-                         0,opal_cache_line_size,
-                         mca_pml_ob1.free_list_num,
-                         mca_pml_ob1.free_list_max,
-                         mca_pml_ob1.free_list_inc,
-                         NULL );
+    OBJ_CONSTRUCT(&mca_pml_ob1.buffers, opal_free_list_t);
+    OBJ_CONSTRUCT(&mca_pml_ob1.send_ranges, opal_free_list_t);
+    opal_free_list_init ( &mca_pml_ob1.send_ranges,
+                          sizeof(mca_pml_ob1_send_range_t) +
+                          (mca_pml_ob1.max_send_per_range - 1) * sizeof(mca_pml_ob1_com_btl_t),
+                          opal_cache_line_size,
+                          OBJ_CLASS(mca_pml_ob1_send_range_t),
+                          0,opal_cache_line_size,
+                          mca_pml_ob1.free_list_num,
+                          mca_pml_ob1.free_list_max,
+                          mca_pml_ob1.free_list_inc,
+                          NULL, 0, NULL, NULL, NULL);
 
     /* pending operations */
     OBJ_CONSTRUCT(&mca_pml_ob1.send_pending, opal_list_t);
@@ -160,29 +161,29 @@ int mca_pml_ob1_enable(bool enable)
      * should get ownership for the send and receive requests list, and
      * initialize them with the size of our own requests.
      */
-    ompi_free_list_init_new( &mca_pml_base_send_requests,
-                         sizeof(mca_pml_ob1_send_request_t) +
-                         (mca_pml_ob1.max_rdma_per_request - 1) *
-                         sizeof(mca_pml_ob1_com_btl_t),
-                         opal_cache_line_size,
-                         OBJ_CLASS(mca_pml_ob1_send_request_t),
-                         0,opal_cache_line_size,
-                         mca_pml_ob1.free_list_num,
-                         mca_pml_ob1.free_list_max,
-                         mca_pml_ob1.free_list_inc,
-                         NULL );
+    opal_free_list_init ( &mca_pml_base_send_requests,
+                          sizeof(mca_pml_ob1_send_request_t) +
+                          (mca_pml_ob1.max_rdma_per_request - 1) *
+                          sizeof(mca_pml_ob1_com_btl_t),
+                          opal_cache_line_size,
+                          OBJ_CLASS(mca_pml_ob1_send_request_t),
+                          0,opal_cache_line_size,
+                          mca_pml_ob1.free_list_num,
+                          mca_pml_ob1.free_list_max,
+                          mca_pml_ob1.free_list_inc,
+                          NULL, 0, NULL, NULL, NULL);
 
-    ompi_free_list_init_new( &mca_pml_base_recv_requests,
-                         sizeof(mca_pml_ob1_recv_request_t) +
-                         (mca_pml_ob1.max_rdma_per_request - 1) *
-                         sizeof(mca_pml_ob1_com_btl_t),
-                         opal_cache_line_size,
-                         OBJ_CLASS(mca_pml_ob1_recv_request_t),
-                         0,opal_cache_line_size,
-                         mca_pml_ob1.free_list_num,
-                         mca_pml_ob1.free_list_max,
-                         mca_pml_ob1.free_list_inc,
-                         NULL );
+    opal_free_list_init ( &mca_pml_base_recv_requests,
+                          sizeof(mca_pml_ob1_recv_request_t) +
+                          (mca_pml_ob1.max_rdma_per_request - 1) *
+                          sizeof(mca_pml_ob1_com_btl_t),
+                          opal_cache_line_size,
+                          OBJ_CLASS(mca_pml_ob1_recv_request_t),
+                          0,opal_cache_line_size,
+                          mca_pml_ob1.free_list_num,
+                          mca_pml_ob1.free_list_max,
+                          mca_pml_ob1.free_list_inc,
+                          NULL, 0, NULL, NULL, NULL);
 
     mca_pml_ob1.enabled = true;
     return OMPI_SUCCESS;
@@ -500,17 +501,17 @@ static void mca_pml_ob1_dump_hdr(mca_pml_ob1_hdr_t* hdr)
     case MCA_PML_OB1_HDR_TYPE_RGET:
         type = "RGET";
         snprintf( header, 128, "ctx %5d src %d tag %d seq %d msg_length %" PRIu64
-                  "seg_cnt %d  hdr_des %" PRIu64,
+                  "frag %" PRIu64 " src_ptr %" PRIu64,
                   hdr->hdr_rndv.hdr_match.hdr_ctx, hdr->hdr_rndv.hdr_match.hdr_src,
                   hdr->hdr_rndv.hdr_match.hdr_tag, hdr->hdr_rndv.hdr_match.hdr_seq,
-                  hdr->hdr_rndv.hdr_msg_length,
-                  hdr->hdr_rget.hdr_seg_cnt, hdr->hdr_rget.hdr_des.lval);
+                  hdr->hdr_rndv.hdr_msg_length, hdr->hdr_rget.hdr_frag.lval,
+                  hdr->hdr_rget.hdr_src_ptr);
         break;
     case MCA_PML_OB1_HDR_TYPE_ACK:
         type = "ACK";
-        snprintf( header, 128, "src_req %p dst_req %p offset %" PRIu64,
+        snprintf( header, 128, "src_req %p dst_req %p offset %" PRIu64 " size %" PRIu64,
                   hdr->hdr_ack.hdr_src_req.pval, hdr->hdr_ack.hdr_dst_req.pval,
-                  hdr->hdr_ack.hdr_send_offset);
+                  hdr->hdr_ack.hdr_send_offset, hdr->hdr_ack.hdr_send_size);
         break;
     case MCA_PML_OB1_HDR_TYPE_FRAG:
         type = "FRAG";
@@ -520,10 +521,11 @@ static void mca_pml_ob1_dump_hdr(mca_pml_ob1_hdr_t* hdr)
         break;
     case MCA_PML_OB1_HDR_TYPE_PUT:
         type = "PUT";
-        snprintf( header, 128, "seg_cnt %d dst_req %p src_des %p recv_req %p offset %" PRIu64 " [%p %" PRIu64 "]",
-                  hdr->hdr_rdma.hdr_seg_cnt, hdr->hdr_rdma.hdr_req.pval, hdr->hdr_rdma.hdr_des.pval,
+        snprintf( header, 128, "dst_req %p src_frag %p recv_req %p offset %" PRIu64
+                  " dst_ptr %" PRIu64 " dst_size %" PRIu64,
+                  hdr->hdr_rdma.hdr_req.pval, hdr->hdr_rdma.hdr_frag.pval,
                   hdr->hdr_rdma.hdr_recv_req.pval, hdr->hdr_rdma.hdr_rdma_offset,
-                  hdr->hdr_rdma.hdr_segs[0].seg_addr.pval, hdr->hdr_rdma.hdr_segs[0].seg_len);
+                  hdr->hdr_rdma.hdr_dst_ptr, hdr->hdr_rdma.hdr_dst_size);
         break;
     case MCA_PML_OB1_HDR_TYPE_FIN:
         type = "FIN";
@@ -638,37 +640,32 @@ static void mca_pml_ob1_fin_completion( mca_btl_base_module_t* btl,
  */
 int mca_pml_ob1_send_fin( ompi_proc_t* proc,
                           mca_bml_base_btl_t* bml_btl,
-                          opal_ptr_t hdr_des,
+                          opal_ptr_t hdr_frag,
+                          uint64_t rdma_size,
                           uint8_t order,
-                          uint32_t status )
+                          int status )
 {
     mca_btl_base_descriptor_t* fin;
-    mca_pml_ob1_fin_hdr_t* hdr;
     int rc;
 
     mca_bml_base_alloc(bml_btl, &fin, order, sizeof(mca_pml_ob1_fin_hdr_t),
-                       MCA_BTL_DES_FLAGS_PRIORITY | MCA_BTL_DES_FLAGS_BTL_OWNERSHIP);
+                       MCA_BTL_DES_FLAGS_PRIORITY | MCA_BTL_DES_FLAGS_BTL_OWNERSHIP | MCA_BTL_DES_FLAGS_SIGNAL);
 
     if(NULL == fin) {
-        MCA_PML_OB1_ADD_FIN_TO_PENDING(proc, hdr_des, bml_btl, order, status);
+        MCA_PML_OB1_ADD_FIN_TO_PENDING(proc, hdr_frag, rdma_size, bml_btl, order, status);
         return OMPI_ERR_OUT_OF_RESOURCE;
     }
     fin->des_cbfunc = mca_pml_ob1_fin_completion;
     fin->des_cbdata = NULL;
 
     /* fill in header */
-    hdr = (mca_pml_ob1_fin_hdr_t*)fin->des_local->seg_addr.pval;
-    hdr->hdr_common.hdr_flags = 0;
-    hdr->hdr_common.hdr_type = MCA_PML_OB1_HDR_TYPE_FIN;
-    hdr->hdr_des = hdr_des;
-    hdr->hdr_fail = status;
+    mca_pml_ob1_fin_hdr_prepare ((mca_pml_ob1_fin_hdr_t *) fin->des_segments->seg_addr.pval,
+                                 0, hdr_frag.lval, status ? status : (int64_t) rdma_size);
 
     ob1_hdr_hton(hdr, MCA_PML_OB1_HDR_TYPE_FIN, proc);
 
     /* queue request */
-    rc = mca_bml_base_send( bml_btl,
-                            fin,
-                            MCA_PML_OB1_HDR_TYPE_FIN );
+    rc = mca_bml_base_send( bml_btl, fin, MCA_PML_OB1_HDR_TYPE_FIN );
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             MCA_PML_OB1_PROGRESS_PENDING(bml_btl);
@@ -676,7 +673,7 @@ int mca_pml_ob1_send_fin( ompi_proc_t* proc,
         return OMPI_SUCCESS;
     }
     mca_bml_base_free(bml_btl, fin);
-    MCA_PML_OB1_ADD_FIN_TO_PENDING(proc, hdr_des, bml_btl, order, status);
+    MCA_PML_OB1_ADD_FIN_TO_PENDING(proc, hdr_frag, rdma_size, bml_btl, order, status);
     return OMPI_ERR_OUT_OF_RESOURCE;
 }
 
@@ -717,6 +714,7 @@ void mca_pml_ob1_process_pending_packets(mca_bml_base_btl_t* bml_btl)
                         pckt->hdr.hdr_ack.hdr_src_req.lval,
                         pckt->hdr.hdr_ack.hdr_dst_req.pval,
                         pckt->hdr.hdr_ack.hdr_send_offset,
+                        pckt->hdr.hdr_ack.hdr_send_size,
                         pckt->hdr.hdr_common.hdr_flags & MCA_PML_OB1_HDR_FLAGS_NORDMA);
                 if( OPAL_UNLIKELY(OMPI_ERR_OUT_OF_RESOURCE == rc) ) {
                     OPAL_THREAD_LOCK(&mca_pml_ob1.lock);
@@ -728,9 +726,10 @@ void mca_pml_ob1_process_pending_packets(mca_bml_base_btl_t* bml_btl)
                 break;
             case MCA_PML_OB1_HDR_TYPE_FIN:
                 rc = mca_pml_ob1_send_fin(pckt->proc, send_dst,
-                                          pckt->hdr.hdr_fin.hdr_des,
+                                          pckt->hdr.hdr_fin.hdr_frag,
+                                          pckt->hdr.hdr_fin.hdr_size,
                                           pckt->order,
-                                          pckt->hdr.hdr_fin.hdr_fail);
+                                          pckt->status);
                 if( OPAL_UNLIKELY(OMPI_ERR_OUT_OF_RESOURCE == rc) ) {
                     return;
                 }
@@ -794,15 +793,11 @@ int mca_pml_ob1_ft_event( int state )
     ompi_proc_t** procs = NULL;
     size_t num_procs;
     int ret, p;
-    ompi_rte_collective_t *coll, *modex;
 
-    coll = OBJ_NEW(ompi_rte_collective_t);
-    coll->id = ompi_process_info.peer_init_barrier;
     if(OPAL_CRS_CHECKPOINT == state) {
         if( opal_cr_timing_barrier_enabled ) {
             OPAL_CR_SET_TIMER(OPAL_CR_TIMER_CRCPBR1);
-            ompi_rte_barrier(coll);
-            OMPI_WAIT_FOR_COMPLETION(coll->active);
+            opal_pmix.fence(NULL, 0);
         }
 
         OPAL_CR_SET_TIMER(OPAL_CR_TIMER_P2P0);
@@ -813,20 +808,18 @@ int mca_pml_ob1_ft_event( int state )
         if( !first_continue_pass ) { 
             if( opal_cr_timing_barrier_enabled ) {
                 OPAL_CR_SET_TIMER(OPAL_CR_TIMER_COREBR0);
-                ompi_rte_barrier(coll);
-                OMPI_WAIT_FOR_COMPLETION(coll->active);
+                opal_pmix.fence(NULL, 0);
             }
             OPAL_CR_SET_TIMER(OPAL_CR_TIMER_P2P2);
         }
 
-        if( orte_cr_continue_like_restart && !first_continue_pass ) {
+        if (opal_cr_continue_like_restart && !first_continue_pass) {
             /*
              * Get a list of processes
              */
             procs = ompi_proc_all(&num_procs);
             if(NULL == procs) {
-                ret = OMPI_ERR_OUT_OF_RESOURCE;
-                goto clean;
+                return OMPI_ERR_OUT_OF_RESOURCE;
             }
 
             /*
@@ -844,7 +837,7 @@ int mca_pml_ob1_ft_event( int state )
                     OBJ_RELEASE(procs[p]);
                 }
                 free (procs);
-                goto clean;
+                return ret;
             }
         }
     }
@@ -857,8 +850,7 @@ int mca_pml_ob1_ft_event( int state )
          */
         procs = ompi_proc_all(&num_procs);
         if(NULL == procs) {
-            ret = OMPI_ERR_OUT_OF_RESOURCE;
-            goto clean;
+            return OMPI_ERR_OUT_OF_RESOURCE;
         }
 
         /*
@@ -884,7 +876,7 @@ int mca_pml_ob1_ft_event( int state )
                 OBJ_RELEASE(procs[p]);
             }
             free (procs);
-            goto clean;
+            return ret;
         }
     }
     else if(OPAL_CRS_TERM == state ) {
@@ -916,28 +908,13 @@ int mca_pml_ob1_ft_event( int state )
         if( !first_continue_pass ) {
             if( opal_cr_timing_barrier_enabled ) {
                 OPAL_CR_SET_TIMER(OPAL_CR_TIMER_P2PBR1);
-                ompi_rte_barrier(coll);
-                OMPI_WAIT_FOR_COMPLETION(coll->active);
+                opal_pmix.fence(NULL, 0);
             }
             OPAL_CR_SET_TIMER(OPAL_CR_TIMER_P2P3);
         }
 
-        if( orte_cr_continue_like_restart && !first_continue_pass ) {
-            /*
-             * Exchange the modex information once again.
-             * BTLs will have republished their modex information.
-             */
-            modex = OBJ_NEW(ompi_rte_collective_t);
-            modex->id = ompi_process_info.peer_modex;
-            if (OMPI_SUCCESS != (ret = orte_grpcomm.modex(modex))) {
-                opal_output(0,
-                            "pml:ob1: ft_event(Restart): Failed orte_grpcomm.modex() = %d",
-                            ret);
-                OBJ_RELEASE(modex);
-                goto clean;
-            }
-            OMPI_WAIT_FOR_COMPLETION(modex->active);
-            OBJ_RELEASE(modex);
+        if (opal_cr_continue_like_restart && !first_continue_pass) {
+            opal_pmix.fence(NULL, 0);
 
             /*
              * Startup the PML stack now that the modex is running again
@@ -945,15 +922,11 @@ int mca_pml_ob1_ft_event( int state )
              */
             if( OMPI_SUCCESS != (ret = mca_pml_ob1_add_procs(procs, num_procs) ) ) {
                 opal_output(0, "pml:ob1: ft_event(Restart): Failed in add_procs (%d)", ret);
-                goto clean;
+                return ret;
             }
 
             /* Is this barrier necessary ? JJH */
-            if (OMPI_SUCCESS != (ret = ompi_rte_barrier(coll))) {
-                opal_output(0, "pml:ob1: ft_event(Restart): Failed in ompi_rte_barrier (%d)", ret);
-                goto clean;
-            }
-            OMPI_WAIT_FOR_COMPLETION(coll->active);
+            opal_pmix.fence(NULL, 0);
 
             if( NULL != procs ) {
                 for(p = 0; p < (int)num_procs; ++p) {
@@ -966,8 +939,7 @@ int mca_pml_ob1_ft_event( int state )
         if( !first_continue_pass ) {
             if( opal_cr_timing_barrier_enabled ) {
                 OPAL_CR_SET_TIMER(OPAL_CR_TIMER_P2PBR2);
-                ompi_rte_barrier(coll);
-                OMPI_WAIT_FOR_COMPLETION(coll->active);
+                opal_pmix.fence(NULL, 0);
             }
             OPAL_CR_SET_TIMER(OPAL_CR_TIMER_CRCP1);
         }
@@ -980,17 +952,7 @@ int mca_pml_ob1_ft_event( int state )
          * Exchange the modex information once again.
          * BTLs will have republished their modex information.
          */
-        modex = OBJ_NEW(ompi_rte_collective_t);
-        modex->id = ompi_process_info.peer_modex;
-        if (OMPI_SUCCESS != (ret = orte_grpcomm.modex(modex))) {
-            opal_output(0,
-                        "pml:ob1: ft_event(Restart): Failed orte_grpcomm.modex() = %d",
-                        ret);
-            OBJ_RELEASE(modex);
-            goto clean;
-        }
-        OMPI_WAIT_FOR_COMPLETION(modex->active);
-        OBJ_RELEASE(modex);
+        opal_pmix.fence(NULL, 0);
 
         /*
          * Startup the PML stack now that the modex is running again
@@ -998,15 +960,11 @@ int mca_pml_ob1_ft_event( int state )
          */
         if( OMPI_SUCCESS != (ret = mca_pml_ob1_add_procs(procs, num_procs) ) ) {
             opal_output(0, "pml:ob1: ft_event(Restart): Failed in add_procs (%d)", ret);
-            goto clean;
+            return ret;
         }
 
         /* Is this barrier necessary ? JJH */
-        if (OMPI_SUCCESS != (ret = ompi_rte_barrier(coll))) {
-            opal_output(0, "pml:ob1: ft_event(Restart): Failed in ompi_rte_barrier (%d)", ret);
-            goto clean;
-        }
-        OMPI_WAIT_FOR_COMPLETION(coll->active);
+        opal_pmix.fence(NULL, 0);
 
         if( NULL != procs ) {
             for(p = 0; p < (int)num_procs; ++p) {
@@ -1023,11 +981,7 @@ int mca_pml_ob1_ft_event( int state )
         ;
     }
 
-    ret = OMPI_SUCCESS;
-
-clean:
-    OBJ_RELEASE(coll);
-    return ret;
+    return OMPI_SUCCESS;
 }
 #endif /* OPAL_ENABLE_FT_CR */
 
