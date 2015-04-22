@@ -593,6 +593,7 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
         } else {
             if ((convertor->flags & CONVERTOR_CUDA) && OPAL_DATATYPE_CUDA_KERNEL) {
                 convertor->fAdvance = opal_generic_simple_unpack_cuda;
+                convertor->gpu_buffer_ptr = NULL;
             } else {
                 convertor->fAdvance = opal_generic_simple_unpack;
             }
@@ -639,6 +640,7 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
         } else {
             if ((convertor->flags & CONVERTOR_CUDA) && OPAL_DATATYPE_CUDA_KERNEL ) {
                 convertor->fAdvance = opal_generic_simple_pack_cuda;
+                convertor->gpu_buffer_ptr = NULL;
             } else {
                 convertor->fAdvance = opal_generic_simple_pack;
             }
