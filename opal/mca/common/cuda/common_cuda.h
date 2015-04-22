@@ -28,7 +28,9 @@
 #define MEMHANDLE_SIZE 8
 #define EVTHANDLE_SIZE 8
 
-typedef uint64_t cuIPCHandle[EVTHANDLE_SIZE];
+typedef struct {
+    uint64_t evtHandle[EVTHANDLE_SIZE];
+}cuIPCHandle_t;
 
 struct mca_mpool_common_cuda_reg_data_t {
     uint64_t memHandle[MEMHANDLE_SIZE];
@@ -36,8 +38,9 @@ struct mca_mpool_common_cuda_reg_data_t {
     uint64_t event;
     opal_ptr_t memh_seg_addr;
     size_t memh_seg_len;
-//    cuIPCHandle pipeline_evtHandle[MAX_IPC_EVENT_HANDLE];
-    uint32_t pipeline_size;
+    // uint64_t pipeline_evtHandle[MAX_IPC_EVENT_HANDLE*EVTHANDLE_SIZE];
+    size_t pipeline_size;
+    uint32_t lindex;
 };
 typedef struct mca_mpool_common_cuda_reg_data_t mca_mpool_common_cuda_reg_data_t;
 
