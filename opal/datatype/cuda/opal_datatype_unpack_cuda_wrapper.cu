@@ -121,6 +121,8 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
     unsigned char *conv_ptr, *iov_ptr;
     size_t iov_len_local;
     uint32_t iov_count;
+    uint8_t free_required;
+    uint32_t count_desc_tmp;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end, start_total, end_total;
@@ -151,14 +153,19 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
                            pConvertor->stack_pos, pStack->index, (int)pStack->count, (long)(pStack->disp) ); );
 
     for( iov_count = 0; iov_count < (*out_size); iov_count++ ) {
-        iov_ptr = ddt_cuda_unpack_buffer;
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
         GET_TIME(start);
 #endif
         if (opal_cuda_is_gpu_buffer(iov[iov_count].iov_base)) {
             iov_ptr = (unsigned char*)iov[iov_count].iov_base;
-        } else {    
+            free_required = 0;
+        } else {  
+            if (pConvertor->gpu_buffer_ptr == NULL) {
+                pConvertor->gpu_buffer_ptr = (unsigned char*)opal_cuda_malloc_gpu_buffer(iov[iov_count].iov_len, 0);
+            }
+            iov_ptr = pConvertor->gpu_buffer_ptr;
             cudaMemcpy(iov_ptr, iov[iov_count].iov_base, iov[iov_count].iov_len, cudaMemcpyHostToDevice);
+            free_required = 1;
         }
 #if defined(OPAL_DATATYPE_CUDA_TIMING) 
         GET_TIME( end );
@@ -173,6 +180,11 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
             while( pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA ) {
                 /* now here we have a basic datatype */
                 /* should not go to here */
+                pStack--;
+                pConvertor->stack_pos--;
+                pos_desc --;
+                pElem = &(description[pos_desc]);
+                count_desc = count_desc_tmp;
                 goto complete_loop;
             }
             if( OPAL_DATATYPE_END_LOOP == pElem->elem.common.type ) { /* end of the current loop */
@@ -209,7 +221,6 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
                 OPAL_PTRDIFF_TYPE local_disp = (OPAL_PTRDIFF_TYPE)conv_ptr;
                 if( pElem->loop.common.flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
                     unpack_contiguous_loop_cuda(pElem, &count_desc, &iov_ptr, &conv_ptr, &iov_len_local);
-                    count_desc = 0;
                     if( 0 == count_desc ) {  /* completed */
                         pos_desc += pElem->loop.items + 1;
                         goto update_loop_description;
@@ -221,7 +232,8 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
                             pStack->disp + local_disp);
                 pos_desc++;
             update_loop_description:  /* update the current state */
-                conv_ptr = pConvertor->pBaseBuf + pStack->disp;
+            //    conv_ptr = pConvertor->pBaseBuf + pStack->disp;
+                count_desc_tmp = count_desc;
                 UPDATE_INTERNAL_COUNTERS( description, pos_desc, pElem, count_desc );
                 continue;
             }
@@ -234,10 +246,13 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
     *max_data = total_unpacked;
     pConvertor->bConverted += total_unpacked;  /* update the already converted bytes */
     *out_size = iov_count;
-    pConvertor->bConverted = pConvertor->local_size;
     if( pConvertor->bConverted == pConvertor->remote_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
         printf("total unpacked %lu\n", pConvertor->bConverted);
+        if (pConvertor->gpu_buffer_ptr != NULL && free_required) {
+            opal_cuda_free_gpu_buffer(pConvertor->gpu_buffer_ptr, 0);
+            pConvertor->gpu_buffer_ptr = NULL;
+        }
         return 1;
     }
     /* Save the global position for the next round */
@@ -506,10 +521,13 @@ void unpack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
     tasks_per_block = THREAD_PER_BLOCK * TASK_PER_THREAD;
     num_blocks = (*COUNT + tasks_per_block - 1) / tasks_per_block;
     unpack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
-    
-    *(DESTINATION) = _destination - _end_loop->first_elem_disp;
+
+#if !defined(OPAL_DATATYPE_CUDA_DRY_RUN)     
+    *(DESTINATION) = _destination + _loop->extent*_copy_loops - _end_loop->first_elem_disp;
+    *(SOURCE) = *(SOURCE)  + _copy_loops * _end_loop->size;
     *(SPACE) -= _copy_loops * _end_loop->size;
     *(COUNT) -= _copy_loops;
+#endif
     
     cudaDeviceSynchronize();
 }

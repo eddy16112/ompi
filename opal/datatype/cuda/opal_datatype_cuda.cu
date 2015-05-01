@@ -129,6 +129,8 @@ static inline void cuda_list_push_head(ddt_cuda_list_t *list, ddt_cuda_buffer_t 
     item->next = orig_head;
     if (orig_head == NULL) {
         list->tail = item;
+    } else {
+        orig_head->prev = item;
     }
     list->nb_elements ++;
 }
@@ -141,6 +143,8 @@ static inline void cuda_list_push_tail(ddt_cuda_list_t *list, ddt_cuda_buffer_t 
     item->prev = orig_tail;
     if (orig_tail == NULL) {
         list->head = item;
+    } else {
+        orig_tail->next = item;
     }
     list->nb_elements ++;
 }
@@ -219,10 +223,12 @@ void opal_datatype_cuda_init(void)
         p->gpu_addr = gpu_ptr;
         cuda_device[i].buffer_free.head = p;
         cuda_device[i].buffer_free.tail = cuda_device[i].buffer_free.head;
+        cuda_device[i].buffer_free.nb_elements = 1;
         
         cuda_device[i].buffer_used.head = NULL;
         cuda_device[i].buffer_used.tail = NULL;
         cuda_device[i].buffer_used_size = 0;
+        cuda_device[i].buffer_used.nb_elements = 0;
     }
     
     cudaMalloc((void **)&cuda_desc_d, sizeof(ddt_cuda_desc_t));
