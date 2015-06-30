@@ -907,7 +907,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     
     if (seq == -1) {
         mca_btl_smcuda_send_cuda_unpack_sig(btl, my_cuda_dt_clone->endpoint, lindex, -2);
-        opal_cuda_free_gpu_buffer_p(my_cuda_dt_clone->convertor->gpu_buffer_ptr, 0);
+        opal_cuda_free_gpu_buffer_p(my_cuda_dt_clone->gpu_ptr, 0);
         mca_btl_smcuda_free_cuda_dt_pack_clone(my_cuda_dt_clone->endpoint, lindex);
     }
 }

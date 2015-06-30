@@ -531,7 +531,7 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
             count_desc = length_per_iovec / alignment;
             residue_desc = length_per_iovec % alignment;
             nb_blocks_per_description = (count_desc + thread_per_block - 1) / thread_per_block;
-            DT_CUDA_DEBUG ( opal_cuda_output(2, "description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
+            DT_CUDA_DEBUG ( opal_cuda_output(-1, "description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
             for (j = 0; j < nb_blocks_per_description; j++) {
                 cuda_iov_dist_h_current[current_block].src[task_iteration] = (unsigned char *)(cuda_iov[i].iov_base) + j * thread_per_block * alignment;
                 cuda_iov_dist_h_current[current_block].dst[task_iteration] = destination;

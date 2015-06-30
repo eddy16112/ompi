@@ -1338,6 +1338,7 @@ void mca_btl_smcuda_cuda_dt_pack_clone(struct opal_convertor_t *convertor,
                                        int lindex)
 {
     endpoint->smcuda_dt_pack_clone[lindex].convertor = convertor;
+    endpoint->smcuda_dt_pack_clone[lindex].gpu_ptr = convertor->gpu_buffer_ptr;
     endpoint->smcuda_dt_pack_clone[lindex].endpoint = endpoint;
     endpoint->smcuda_dt_pack_clone[lindex].local_address = local_address;
     endpoint->smcuda_dt_pack_clone[lindex].local_handle = local_handle;
@@ -1359,6 +1360,7 @@ void mca_btl_smcuda_cuda_dt_unpack_clone(struct opal_convertor_t *convertor,
                                          int lindex)
 {
     endpoint->smcuda_dt_unpack_clone[lindex].convertor = convertor;
+    endpoint->smcuda_dt_unpack_clone[lindex].gpu_ptr = convertor->gpu_buffer_ptr;
     endpoint->smcuda_dt_unpack_clone[lindex].endpoint = endpoint;
     endpoint->smcuda_dt_unpack_clone[lindex].local_address = local_address;
     endpoint->smcuda_dt_unpack_clone[lindex].local_handle = local_handle;
