@@ -517,6 +517,7 @@ typedef struct {
 /* package save pack/unpack convertor and cbfunc */
 typedef struct {
     struct opal_convertor_t *convertor;
+    void *gpu_ptr;
     struct mca_btl_base_endpoint_t *endpoint;
     void *local_address;
     struct mca_btl_base_registration_handle_t *local_handle;

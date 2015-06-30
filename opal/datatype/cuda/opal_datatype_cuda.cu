@@ -434,6 +434,8 @@ void opal_cuda_free_gpu_buffer(void *addr, int gpu_id)
     if (ptr == NULL) {
         DT_CUDA_DEBUG( opal_cuda_output( 0, "addr %p is not managed.\n", addr); );
     }
+    cuda_list_item_merge_by_addr(&device->buffer_free, ptr);
+    device->buffer_free_size += ptr->size;
     DT_CUDA_DEBUG( opal_cuda_output( 0, "Free GPU buffer %p.\n", addr); );
 }
 
