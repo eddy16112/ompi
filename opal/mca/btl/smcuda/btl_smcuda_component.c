@@ -883,7 +883,7 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
         iov.iov_len = my_cuda_dt_clone->pipeline_size;
         opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
     }
-    
+   // MCA_BTL_SMCUDA_FRAG_RETURN(frag);
 }
 
 static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
@@ -910,6 +910,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
         opal_cuda_free_gpu_buffer_p(my_cuda_dt_clone->gpu_ptr, 0);
         mca_btl_smcuda_free_cuda_dt_pack_clone(my_cuda_dt_clone->endpoint, lindex);
     }
+  //  MCA_BTL_SMCUDA_FRAG_RETURN(frag);
 }
 
 #endif /* OPAL_CUDA_SUPPORT */
@@ -1187,6 +1188,12 @@ int mca_btl_smcuda_component_progress(void)
                                           &frag->base, status?OPAL_ERROR:OPAL_SUCCESS);
                 }
                 if( btl_ownership ) {
+                    if (frag->hdr->tag == MCA_BTL_TAG_SMCUDA_DATATYPE_PACK) {
+                        printf("&&&&&&&&&&&&&&&&&&got PACK TAG\n");
+                    }
+                    if (frag->hdr->tag == MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK) {
+                        printf("&&&&&&&&&&&&&&&&&&got UNPACK TAG\n");
+                    }
                     MCA_BTL_SMCUDA_FRAG_RETURN(frag);
                 }
                 OPAL_THREAD_ADD32(&mca_btl_smcuda_component.num_outstanding_frags, -1);

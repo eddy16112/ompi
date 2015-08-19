@@ -526,6 +526,7 @@ typedef struct {
     void *cbdata;
     size_t pipeline_size;
     int lindex;
+    int seq;
 } cuda_dt_clone_t;
 
 #define SMCUDA_DT_CLONE_SIZE 20
@@ -533,6 +534,10 @@ extern cuda_dt_clone_t smcuda_dt_clone[SMCUDA_DT_CLONE_SIZE];
 
 int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq);
 int mca_btl_smcuda_send_cuda_pack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, int lindex, int seq);
+int mca_btl_smcuda_check_cuda_dt_pack_clone_exist(struct mca_btl_base_endpoint_t *endpoint, struct opal_convertor_t *convertor);
+int mca_btl_smcuda_set_cuda_dt_pack_seq(struct mca_btl_base_endpoint_t *endpoint, int lindex, int seq);
+int mca_btl_smcuda_get_cuda_dt_pack_seq(struct mca_btl_base_endpoint_t *endpoint, int lindex);
+int mca_btl_smcuda_get_cuda_dt_pack_pipeline_size(struct mca_btl_base_endpoint_t *endpoint, int lindex);
 int mca_btl_smcuda_alloc_cuda_dt_pack_clone(struct mca_btl_base_endpoint_t *endpoint);
 int mca_btl_smcuda_alloc_cuda_dt_unpack_clone(struct mca_btl_base_endpoint_t *endpoint);
 void mca_btl_smcuda_free_cuda_dt_pack_clone(struct mca_btl_base_endpoint_t *endpoint, int lindex);
