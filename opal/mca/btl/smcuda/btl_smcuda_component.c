@@ -914,7 +914,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
         struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
         struct iovec iov;
         int rc_dt = 0;
-        size_t pipeline_size = 1024*1024*200;
+        size_t pipeline_size = 1024*1024*20;
         uint32_t iov_count = 1;
         iov.iov_base = convertor->gpu_buffer_ptr;
         iov.iov_len = pipeline_size;
