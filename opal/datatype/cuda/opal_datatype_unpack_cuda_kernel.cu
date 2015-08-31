@@ -277,9 +277,9 @@ __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t*
             _destination_tmp = dst + threadIdx.x * alignment;
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
                 if (alignment == ALIGNMENT_DOUBLE) {
-                    *((double *)_destination_tmp) = *((double *)_source_tmp);
+                    *((long *)_destination_tmp) = *((long *)_source_tmp);
                 } else if (alignment == ALIGNMENT_FLOAT) {
-                    *((float *)_destination_tmp) = *((float *)_source_tmp);
+                    *((int *)_destination_tmp) = *((int *)_source_tmp);
                 } else {
                     * _destination_tmp = *_source_tmp;
                 }
@@ -296,15 +296,15 @@ __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
 {
     uint32_t _i, tid, num_threads;
     uint32_t gap, nb_elements;
-    double *_source_tmp, *_destination_tmp, *_dst_disp_tmp;;
+    char *_source_tmp, *_destination_tmp, *_dst_disp_tmp;;
     
     tid = threadIdx.x + blockIdx.x * blockDim.x;
     num_threads = gridDim.x * blockDim.x;
     
-    gap = (extent - size) / 8;
-    nb_elements = size / 8;
-    _dst_disp_tmp = (double*)destination;
-    _source_tmp = (double*)source;
+    gap = (extent - size) / 1;
+    nb_elements = size / 1;
+    _dst_disp_tmp = (char*)destination;
+    _source_tmp = (char*)source;
     _destination_tmp = _dst_disp_tmp + tid;
     _source_tmp += tid;
 
