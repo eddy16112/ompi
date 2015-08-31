@@ -644,6 +644,8 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     dt_length = compute_buffer_length(pdt, count);
     printf("length %lu\n", dt_length);
 
+    cudaSetDevice(1);
+
 #if defined (DDT_TEST_CUDA)
     cudaError_t error = cudaMalloc((void **)&psrc, dt_length);
     if ( error != cudaSuccess) {
