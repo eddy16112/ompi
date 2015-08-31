@@ -400,6 +400,7 @@ smcuda_btl_first_time_init(mca_btl_smcuda_t *smcuda_btl,
 
     /* allocation will be for the fragment descriptor and payload buffer */
     length = sizeof(mca_btl_smcuda_frag1_t);
+    printf("free list %d\n", mca_btl_smcuda_component.sm_free_list_num);
     length_payload =
         sizeof(mca_btl_smcuda_hdr_t) + mca_btl_smcuda_component.eager_limit;
     i = opal_free_list_init (&mca_btl_smcuda_component.sm_frags_eager, length,
@@ -1044,6 +1045,28 @@ static int mca_btl_smcuda_deregister_mem (struct mca_btl_base_module_t* btl,
     return OPAL_SUCCESS;
 }
 
+int mca_btl_smcuda_notify_packing_done(void* send_value, int my_rank, int peer_rank)
+{
+    sm_fifo_t* fifo_send = &(mca_btl_smcuda_component.fifo[peer_rank][FIFO_MAP(my_rank)]);
+    if (fifo_send == NULL) {
+        return OPAL_ERROR;
+    } else {
+   //     return sm_fifo_write(send_value, fifo_send);
+        int tail = fifo_send->tail;
+        int head = fifo_send->head;
+        if ((head + 1) & fifo_send->mask == tail) {
+            printf("fifo is full\n");
+            return OPAL_ERR_OUT_OF_RESOURCE;
+        } else {
+            volatile void **q = (volatile void **) RELATIVE2VIRTUAL(fifo_send->queue);
+            tail = (tail - 1) & fifo_send->mask;
+            q[tail] = send_value;
+            printf("write to place %d tail %d head %d\n", tail, fifo_send->tail, fifo_send->head);
+            return OPAL_SUCCESS;
+        }
+    }
+}
+
 int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     struct mca_btl_base_endpoint_t *ep, void *local_address,
     uint64_t remote_address, struct mca_btl_base_registration_handle_t *local_handle,
@@ -1144,7 +1167,9 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
             printf("i receive pipeline %ld, lindex %d, pack_required %d\n", pipeline_size, lindex, pack_required);
             convertor->gpu_buffer_ptr = remote_memory_address;
             mca_btl_smcuda_cuda_dt_unpack_clone(convertor, ep, local_address, local_handle, (mca_btl_base_completion_fn_t)cbfunc, cbcontext, cbdata, pipeline_size, lindex);
-            mca_btl_smcuda_send_cuda_pack_sig(btl, ep, lindex, 0, 0);
+            if (pack_required) {
+                mca_btl_smcuda_send_cuda_pack_sig(btl, ep, lindex, 0, 0);
+            }
             done = 0;
             mca_btl_smcuda_free(btl, (mca_btl_base_descriptor_t *)frag);
         } else {
