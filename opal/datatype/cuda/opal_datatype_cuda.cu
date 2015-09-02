@@ -213,6 +213,7 @@ void opal_datatype_cuda_init(void)
         opal_cuda_output(0, "Cannot retrieve the device being used. Drop CUDA support!\n");
         return;
     }    
+    printf("current device %d\n", device);
 
     cuda_free_list = init_cuda_free_list();
     
@@ -367,6 +368,9 @@ unsigned char* opal_cuda_get_gpu_pack_buffer()
 
 void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
 {
+    int dev_id;
+    cudaGetDevice(&dev_id);
+    printf("malloc gpu buffer in dev %d\n", dev_id);
     ddt_cuda_device_t *device = &cuda_device[gpu_id];
     if (device->buffer_free_size < size) {
         return NULL;
@@ -402,7 +406,7 @@ void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
         cuda_list_push_head(&device->buffer_used, p);
         device->buffer_used_size += size;
         device->buffer_free_size -= size;
-        DT_CUDA_DEBUG( opal_cuda_output( 0, "Malloc GPU buffer %p.\n", addr); );
+        DT_CUDA_DEBUG( opal_cuda_output( 1, "Malloc GPU buffer %p.\n", addr); );
         return addr;
     }
 }
@@ -440,7 +444,7 @@ void opal_cuda_free_gpu_buffer(void *addr, int gpu_id)
     }
     cuda_list_item_merge_by_addr(&device->buffer_free, ptr);
     device->buffer_free_size += ptr->size;
-    DT_CUDA_DEBUG( opal_cuda_output( 0, "Free GPU buffer %p.\n", addr); );
+    DT_CUDA_DEBUG( opal_cuda_output( 1, "Free GPU buffer %p.\n", addr); );
 }
 
 void opal_dump_cuda_list(ddt_cuda_list_t *list)

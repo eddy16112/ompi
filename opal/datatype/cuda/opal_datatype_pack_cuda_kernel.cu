@@ -536,15 +536,15 @@ __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
 {
     uint32_t _i, tid, num_threads;
     uint32_t gap, nb_elements;
-    char *_source_tmp, *_destination_tmp, *_src_disp_tmp;;
+    double *_source_tmp, *_destination_tmp, *_src_disp_tmp;;
     
     tid = threadIdx.x + blockIdx.x * blockDim.x;
     num_threads = gridDim.x * blockDim.x;
     
-    gap = (extent - size) / 1;
-    nb_elements = size / 1;
-    _src_disp_tmp = (char*)source;
-    _destination_tmp = (char*)destination;
+    gap = (extent - size) / 8;
+    nb_elements = size / 8;
+    _src_disp_tmp = (double*)source;
+    _destination_tmp = (double*)destination;
     _destination_tmp += tid;
 
     for (_i = tid; _i < copy_loops*nb_elements; _i+=num_threads) {

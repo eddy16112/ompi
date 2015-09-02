@@ -296,15 +296,15 @@ __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
 {
     uint32_t _i, tid, num_threads;
     uint32_t gap, nb_elements;
-    char *_source_tmp, *_destination_tmp, *_dst_disp_tmp;;
+    double *_source_tmp, *_destination_tmp, *_dst_disp_tmp;;
     
     tid = threadIdx.x + blockIdx.x * blockDim.x;
     num_threads = gridDim.x * blockDim.x;
     
-    gap = (extent - size) / 1;
-    nb_elements = size / 1;
-    _dst_disp_tmp = (char*)destination;
-    _source_tmp = (char*)source;
+    gap = (extent - size) / 8;
+    nb_elements = size / 8;
+    _dst_disp_tmp = (double*)destination;
+    _source_tmp = (double*)source;
     _destination_tmp = _dst_disp_tmp + tid;
     _source_tmp += tid;
 
