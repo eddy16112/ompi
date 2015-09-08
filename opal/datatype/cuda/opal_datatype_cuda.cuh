@@ -44,11 +44,23 @@ void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
                                 unsigned char** DESTINATION,
                                 size_t* SPACE );
                                 
+void pack_contiguous_loop_cuda_memcpy2d( dt_elem_desc_t* ELEM,
+                                         uint32_t* COUNT,
+                                         unsigned char** SOURCE,
+                                         unsigned char** DESTINATION,
+                                         size_t* SPACE, uint8_t* transfer_required );
+                                
 void unpack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
                                   uint32_t* COUNT,
                                   unsigned char** SOURCE,
                                   unsigned char** DESTINATION,
                                   size_t* SPACE );
+
+void unpack_contiguous_loop_cuda_memcpy2d( dt_elem_desc_t* ELEM,
+                                           uint32_t* COUNT,
+                                           unsigned char** SOURCE,
+                                           unsigned char** DESTINATION,
+                                           size_t* SPACE, uint8_t* free_required );
                                   
 void pack_predefined_data_cuda( dt_elem_desc_t* ELEM,
                                 uint32_t* COUNT,

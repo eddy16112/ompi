@@ -41,7 +41,7 @@
 #include "opal/mca/btl/btl.h"
 #include "opal/mca/common/sm/common_sm.h"
 
-#define OPAL_DATATYPE_DIRECT_COPY_GPUMEM    1
+#define OPAL_DATATYPE_DIRECT_COPY_GPUMEM    0
 
 BEGIN_C_DECLS
 
