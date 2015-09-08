@@ -633,3 +633,17 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
         }
     }
 }
+
+__global__ void opal_empty_kernel(uint32_t copy_loops,
+                                  size_t size,
+                                  OPAL_PTRDIFF_TYPE extent,
+                                  unsigned char* source,
+                                  unsigned char* destination)
+{
+    
+}
+
+__global__ void opal_empty_kernel_noargs()
+{
+    
+}

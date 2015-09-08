@@ -370,9 +370,9 @@ void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
 {
     int dev_id;
     cudaGetDevice(&dev_id);
-    printf("malloc gpu buffer in dev %d\n", dev_id);
     ddt_cuda_device_t *device = &cuda_device[gpu_id];
     if (device->buffer_free_size < size) {
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "No GPU buffer at dev_id %d.\n", dev_id); );
         return NULL;
     }
     ddt_cuda_buffer_t *ptr = NULL;
@@ -406,7 +406,7 @@ void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
         cuda_list_push_head(&device->buffer_used, p);
         device->buffer_used_size += size;
         device->buffer_free_size -= size;
-        DT_CUDA_DEBUG( opal_cuda_output( 1, "Malloc GPU buffer %p.\n", addr); );
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "Malloc GPU buffer %p, dev_id %d.\n", addr, dev_id); );
         return addr;
     }
 }
@@ -442,9 +442,11 @@ void opal_cuda_free_gpu_buffer(void *addr, int gpu_id)
     if (ptr == NULL) {
         DT_CUDA_DEBUG( opal_cuda_output( 0, "addr %p is not managed.\n", addr); );
     }
+    size_t size = ptr->size;
     cuda_list_item_merge_by_addr(&device->buffer_free, ptr);
-    device->buffer_free_size += ptr->size;
-    DT_CUDA_DEBUG( opal_cuda_output( 1, "Free GPU buffer %p.\n", addr); );
+    device->buffer_free_size += size;
+    device->buffer_used_size -= size;
+    DT_CUDA_DEBUG( opal_cuda_output( 0, "Free GPU buffer %p.\n", addr); );
 }
 
 void opal_dump_cuda_list(ddt_cuda_list_t *list)

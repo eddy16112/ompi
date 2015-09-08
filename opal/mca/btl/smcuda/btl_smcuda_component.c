@@ -931,7 +931,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     } else {
         struct iovec iov;
         int rc_dt = 0;
-        size_t pipeline_size = 1024*1024*200;
+        size_t pipeline_size = 1024*1024*10;
         uint32_t iov_count = 1;
         iov.iov_base = convertor->gpu_buffer_ptr;
         iov.iov_len = pipeline_size;
