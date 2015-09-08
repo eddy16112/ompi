@@ -142,7 +142,7 @@ static int mca_btl_smcuda_component_verify(void) {
 static int smcuda_register(void)
 {
     /* register SM component parameters */
-    mca_btl_smcuda_param_register_int("free_list_num", 8, OPAL_INFO_LVL_5, &mca_btl_smcuda_component.sm_free_list_num);
+    mca_btl_smcuda_param_register_int("free_list_num", 16, OPAL_INFO_LVL_5, &mca_btl_smcuda_component.sm_free_list_num);
     mca_btl_smcuda_param_register_int("free_list_max", -1, OPAL_INFO_LVL_5, &mca_btl_smcuda_component.sm_free_list_max);
     mca_btl_smcuda_param_register_int("free_list_inc", 64, OPAL_INFO_LVL_5, &mca_btl_smcuda_component.sm_free_list_inc);
     mca_btl_smcuda_param_register_int("max_procs", -1, OPAL_INFO_LVL_5, &mca_btl_smcuda_component.sm_max_procs);
@@ -931,7 +931,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     } else {
         struct iovec iov;
         int rc_dt = 0;
-        size_t pipeline_size = 1024*1024*20;
+        size_t pipeline_size = 1024*1024*200;
         uint32_t iov_count = 1;
         iov.iov_base = convertor->gpu_buffer_ptr;
         iov.iov_len = pipeline_size;
