@@ -370,7 +370,7 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
 #endif
     
     dst_offset = 0;
-    thread_per_block = CUDA_WARP_SIZE * 5;
+    thread_per_block = CUDA_WARP_SIZE * 4;
     nb_blocks = 256;
     
     while (cuda_iov_count > 0) {
