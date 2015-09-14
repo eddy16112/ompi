@@ -1046,28 +1046,6 @@ static int mca_btl_smcuda_deregister_mem (struct mca_btl_base_module_t* btl,
     return OPAL_SUCCESS;
 }
 
-int mca_btl_smcuda_notify_packing_done(void* send_value, int my_rank, int peer_rank)
-{
-    sm_fifo_t* fifo_send = &(mca_btl_smcuda_component.fifo[peer_rank][FIFO_MAP(my_rank)]);
-    if (fifo_send == NULL) {
-        return OPAL_ERROR;
-    } else {
-   //     return sm_fifo_write(send_value, fifo_send);
-        int tail = fifo_send->tail;
-        int head = fifo_send->head;
-        if ((head + 1) & fifo_send->mask == tail) {
-            printf("fifo is full\n");
-            return OPAL_ERR_OUT_OF_RESOURCE;
-        } else {
-            volatile void **q = (volatile void **) RELATIVE2VIRTUAL(fifo_send->queue);
-            tail = (tail - 1) & fifo_send->mask;
-            q[tail] = send_value;
-            printf("write to place %d tail %d head %d\n", tail, fifo_send->tail, fifo_send->head);
-            return OPAL_SUCCESS;
-        }
-    }
-}
-
 int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     struct mca_btl_base_endpoint_t *ep, void *local_address,
     uint64_t remote_address, struct mca_btl_base_registration_handle_t *local_handle,

@@ -167,6 +167,7 @@ static int smcuda_register(void)
     mca_btl_smcuda_param_register_int("use_cuda_ipc", 1, OPAL_INFO_LVL_4, &mca_btl_smcuda_component.use_cuda_ipc);
     mca_btl_smcuda_param_register_int("use_cuda_ipc_same_gpu", 1, OPAL_INFO_LVL_4,&mca_btl_smcuda_component.use_cuda_ipc_same_gpu);
     mca_btl_smcuda_param_register_int("cuda_ipc_verbose", 0, OPAL_INFO_LVL_4, &mca_btl_smcuda_component.cuda_ipc_verbose);
+    mca_btl_smcuda_param_register_int("cuda_dt_pipeline_size", 1024*1024*400, OPAL_INFO_LVL_4, &mca_btl_smcuda_component.cuda_dt_pipeline_size);
     mca_btl_smcuda_component.cuda_ipc_output = opal_output_open(NULL);
     opal_output_set_verbosity(mca_btl_smcuda_component.cuda_ipc_output, mca_btl_smcuda_component.cuda_ipc_verbose);
 #else /* OPAL_CUDA_SUPPORT */
@@ -931,7 +932,8 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     } else {
         struct iovec iov;
         int rc_dt = 0;
-        size_t pipeline_size = 1024*1024*10;
+        size_t pipeline_size = mca_btl_smcuda_component.cuda_dt_pipeline_size;
+        printf("Pipeline_size %ld\n", pipeline_size);
         uint32_t iov_count = 1;
         iov.iov_base = convertor->gpu_buffer_ptr;
         iov.iov_len = pipeline_size;

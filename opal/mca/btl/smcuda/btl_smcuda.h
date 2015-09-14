@@ -207,6 +207,7 @@ struct mca_btl_smcuda_component_t {
     int cuda_ipc_output;
     int use_cuda_ipc;
     int use_cuda_ipc_same_gpu;
+    int cuda_dt_pipeline_size;
 #endif /* OPAL_CUDA_SUPPORT */
 };
 typedef struct mca_btl_smcuda_component_t mca_btl_smcuda_component_t;
