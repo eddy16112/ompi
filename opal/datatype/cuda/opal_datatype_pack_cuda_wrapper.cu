@@ -604,8 +604,9 @@ void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
 #endif    
  //   tasks_per_block = THREAD_PER_BLOCK * TASK_PER_THREAD;
  //   num_blocks = (*COUNT + tasks_per_block - 1) / tasks_per_block;
- //    cudaMemcpy2D(_destination, _end_loop->size, _source, _loop->extent, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
-//    pack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
+//    printf("extent %ld, size %ld, count %ld\n", _loop->extent, _end_loop->size, _copy_loops);
+//    cudaMemcpy2D(_destination, _end_loop->size, _source, _loop->extent, _end_loop->size, _copy_loops, cudaMemcpyDeviceToDevice);
+    pack_contiguous_loop_cuda_kernel_global<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
 //    int i;
 //    for (i = 0; i < 4; i++) {
 //     opal_empty_kernel<<<192, 4*THREAD_PER_BLOCK>>>(_copy_loops, _end_loop->size, _loop->extent, _source, _destination);
