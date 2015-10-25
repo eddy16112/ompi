@@ -534,9 +534,11 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
         
         /* buffer is full */
         if (buffer_isfull) {
+            size_t total_converted_tmp = total_converted;
             pConvertor->flags = convertor_flags;
             total_converted += total_unpacked;
             opal_convertor_set_position_nocheck(pConvertor, &total_converted);
+            total_unpacked = total_converted - total_converted_tmp;
             break;
         }
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
