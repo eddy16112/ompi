@@ -1047,7 +1047,6 @@ int cuda_getmemhandle(void *base, size_t size, mca_rcache_base_registration_t *n
                             "CUDA: cuMemGetAddressRange passed: addr=%p, size=%d, pbase=%p, psize=%d ",
                             base, (int)size, (void *)pbase, (int)psize);
     }
-    printf("sizeof memhandle %lu, CUipcMemHandle %lu, cuEvent %lu, char %lu\n", sizeof(memHandle), sizeof(CUipcMemHandle), sizeof(CUevent), sizeof(char));
 
     /* Store all the information in the registration */
     cuda_reg->base.base = (void *)pbase;

@@ -300,6 +300,7 @@ int32_t opal_generic_simple_pack_function_cuda_vector(opal_convertor_t* pConvert
                 iov_ptr = pConvertor->gpu_buffer_ptr;
             }
         }
+        cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
         while( 1 ) {
             while( pElem->elem.common.flags & OPAL_DATATYPE_FLAG_DATA ) {
                 /* now here we have a basic datatype */
@@ -713,6 +714,8 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
     convertor_flags = pConvertor->flags;
   //  orig_stack_index = pStack->index;
     destination_base = destination;
+    
+    cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start_total);

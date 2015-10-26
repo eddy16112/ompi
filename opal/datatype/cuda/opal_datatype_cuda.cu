@@ -353,6 +353,17 @@ void opal_cuda_free_gpu_buffer(void *addr, int gpu_id)
     DT_CUDA_DEBUG( opal_cuda_output( 2, "Free GPU buffer %p.\n", addr); );
 }
 
+void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
+{
+    cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, cuda_streams->opal_cuda_stream[0]);
+}
+
+void opal_cuda_d2dcpy(void* dst, const void* src, size_t count)
+{
+    cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, cuda_streams->opal_cuda_stream[0]);
+    cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
+}
+
 void opal_dump_cuda_list(ddt_cuda_list_t *list)
 {
     ddt_cuda_buffer_t *ptr = NULL;
