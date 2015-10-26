@@ -251,6 +251,7 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
         total_time = ELAPSED_TIME( start, end );
         DT_CUDA_DEBUG( opal_cuda_output( 2, "[Timing]: HtoD memcpy in %ld microsec, free required %d\n", total_time, free_required ); );
 #endif
+        cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
         iov_len_local = iov[iov_count].iov_len;
         if( 0 != pConvertor->partial_length ) {
             /* not support yet */
@@ -377,6 +378,8 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     long total_time, move_time;
 #endif
     
+    cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
+
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start_total);
 #endif
