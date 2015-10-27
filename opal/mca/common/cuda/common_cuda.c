@@ -1924,7 +1924,9 @@ static int mca_common_cuda_is_gpu_buffer(const void *pUserBuf, opal_convertor_t 
     if (!stage_three_init_complete) {
         if (0 != mca_common_cuda_stage_three_init()) {
             opal_cuda_support = 0;
-        }
+        } else {
+	    opal_datatype_gpu_init();
+	}
     }
 
     return 1;
