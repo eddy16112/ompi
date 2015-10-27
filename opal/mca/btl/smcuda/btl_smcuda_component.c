@@ -887,12 +887,16 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
         size_t max_data;
         struct opal_convertor_t *convertor = my_cuda_dt_clone->convertor;
         size_t pipeline_size = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
-        if (convertor == NULL) { /* do not unpack */
+        convertor->flags &= ~CONVERTOR_CUDA;
+        if (opal_convertor_need_buffers(convertor) == false) { /* do not unpack */
+            convertor->flags |= CONVERTOR_CUDA;
             mca_btl_smcuda_frag_t *frag_recv = (mca_btl_smcuda_frag_t *) my_cuda_dt_clone->frag;
-            unsigned char *local_address = (unsigned char*)frag_recv->segment.seg_addr.pval;
-            opal_output(0, "no unpack, start D2D copy local %p, remote %p, size %ld\n", local_address + seq*pipeline_size, my_cuda_dt_clone->remote_gpu_address+seq*pipeline_size, packed_size);
-            mca_common_cuda_memp2pcpy(local_address + seq*pipeline_size, my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, packed_size);
+            unsigned char *local_address = my_cuda_dt_clone->current_convertor_pBaseBuf;
+            opal_output(0, "no unpack, start D2D copy local %p, remote %p, size %ld\n", local_address, my_cuda_dt_clone->remote_gpu_address+seq*pipeline_size, packed_size);
+            mca_common_cuda_memp2pcpy(local_address, my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, packed_size);
+            my_cuda_dt_clone->current_convertor_pBaseBuf += packed_size;
         } else {     /* unpack */
+            convertor->flags |= CONVERTOR_CUDA;
             if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
                 convertor->gpu_buffer_ptr = opal_cuda_malloc_gpu_buffer_p(packed_size, 0);
                 (*opal_cuda_d2dcpy_async_p)(convertor->gpu_buffer_ptr, my_cuda_dt_clone->remote_gpu_address + seq*pipeline_size, packed_size);
@@ -912,7 +916,6 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
             }
         }
         send_msg.seq = seq;
-        send_msg.packed_size = packed_size;
         if (msg_type == CUDA_DDT_COMPLETE) {
             send_msg.msg_type = CUDA_DDT_COMPLETE_ACK;
         } else {
@@ -934,7 +937,6 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     int seq = recv_msg.seq;
     int lindex = recv_msg.lindex;
     int msg_type = recv_msg.msg_type;
-    size_t packed_size = recv_msg.packed_size;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
     cuda_ddt_clone_t *my_cuda_dt_clone;
     cuda_ddt_hdr_t send_msg;
@@ -942,6 +944,7 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     uint32_t iov_count = 1;
     int rv_dt = 0;
     size_t max_data = 0;
+    size_t packed_size = 0;
 
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
@@ -962,8 +965,8 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     } else if (msg_type == CUDA_DDT_PACK_TO_BLOCK) {
         if (convertor->bConverted < convertor->local_size) {
             struct iovec iov;
-            iov.iov_base = convertor->gpu_buffer_ptr + seq * mca_btl_smcuda_component.cuda_ddt_pipeline_size;;
-            iov.iov_len = packed_size;
+            iov.iov_base = convertor->gpu_buffer_ptr + seq * mca_btl_smcuda_component.cuda_ddt_pipeline_size;
+            iov.iov_len = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
             rv_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
             packed_size = max_data;
             send_msg.packed_size = packed_size;
@@ -977,8 +980,8 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
         }
     } else if (msg_type == CUDA_DDT_PACK_START) {
         struct iovec iov;
-        iov.iov_len = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
         iov.iov_base = convertor->gpu_buffer_ptr;
+        iov.iov_len = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
         seq = 0;
         while (rv_dt != 1 && convertor->gpu_buffer_size > 0) {
             rv_dt = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );

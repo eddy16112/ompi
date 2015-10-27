@@ -538,6 +538,7 @@ typedef struct {
 /* package save pack/unpack convertor and cbfunc */
 typedef struct {
     struct opal_convertor_t *convertor;
+    unsigned char *current_convertor_pBaseBuf;
     void *remote_gpu_address;
     int lindex;
     uint8_t remote_device;
