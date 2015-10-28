@@ -89,7 +89,7 @@ inline static int mca_btl_smcuda_cuda_ddt_start_pack(struct mca_btl_base_module_
                                                      struct opal_convertor_t *convertor,
                                                      void *remote_gpu_address,
                                                      mca_btl_base_descriptor_t *frag,
-                                                     int lindex, uint8_t remote_device, uint8_t local_device);
+                                                     int lindex, int remote_device, int local_device);
 #endif
 
 mca_btl_smcuda_t mca_btl_smcuda = {
@@ -1145,8 +1145,8 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
         convertor->flags &= ~CONVERTOR_CUDA;
         uint8_t pack_required = remote_handle->reg_data.pack_required;
         uint32_t lindex = remote_handle->reg_data.lindex;
-        uint8_t remote_device = remote_handle->reg_data.gpu_device;
-        int32_t local_device = 0;
+        int remote_device = remote_handle->reg_data.gpu_device;
+        int local_device = 0;
         rc = mca_common_cuda_get_device(&local_device);
         if (rc != 0) {
             opal_output(0, "Failed to get the GPU device ID, rc=%d", rc);
@@ -1384,7 +1384,7 @@ inline static int mca_btl_smcuda_cuda_ddt_start_pack(struct mca_btl_base_module_
                                                      struct opal_convertor_t *convertor,
                                                      void *remote_gpu_address,
                                                      mca_btl_base_descriptor_t *frag,
-                                                     int lindex, uint8_t remote_device, uint8_t local_device)
+                                                     int lindex, int remote_device, int local_device)
 {
     cuda_ddt_hdr_t send_msg;
     mca_btl_smcuda_cuda_ddt_unpack_clone(endpoint, convertor, remote_gpu_address, (mca_btl_base_descriptor_t *)frag, 
@@ -1435,7 +1435,7 @@ void mca_btl_smcuda_cuda_ddt_pack_clone(struct mca_btl_base_endpoint_t *endpoint
                                         struct opal_convertor_t *convertor,
                                         void *remote_gpu_address,
                                         mca_btl_base_descriptor_t *frag,
-                                        int lindex, uint8_t remote_device, uint8_t local_device)
+                                        int lindex, int remote_device, int local_device)
 {
     endpoint->smcuda_ddt_pack_clone[lindex].convertor = convertor;
     endpoint->smcuda_ddt_pack_clone[lindex].current_convertor_pBaseBuf = convertor->pBaseBuf;
@@ -1450,7 +1450,7 @@ void mca_btl_smcuda_cuda_ddt_unpack_clone(struct mca_btl_base_endpoint_t *endpoi
                                           struct opal_convertor_t *convertor,
                                           void *remote_gpu_address,
                                           mca_btl_base_descriptor_t *frag,
-                                          int lindex, uint8_t remote_device, uint8_t local_device)
+                                          int lindex, int remote_device, int local_device)
 {
     endpoint->smcuda_ddt_unpack_clone[lindex].convertor = convertor;
     endpoint->smcuda_ddt_unpack_clone[lindex].current_convertor_pBaseBuf = convertor->pBaseBuf;
