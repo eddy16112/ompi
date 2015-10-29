@@ -27,6 +27,8 @@ int32_t opal_generic_simple_pack_function_cuda_vector2(opal_convertor_t* pConver
     uint8_t free_required;
     uint32_t count_desc_tmp;
     
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
+    
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     TIMER_DATA_TYPE start, end, start_total, end_total;
     long total_time;
@@ -227,6 +229,8 @@ int32_t opal_generic_simple_pack_function_cuda_vector(opal_convertor_t* pConvert
     uint8_t transfer_required;
     uint8_t free_required;
     uint32_t count_desc_tmp;
+    
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end, start_total, end_total;
@@ -478,6 +482,8 @@ void pack_contiguous_loop_cuda_pipeline( dt_elem_desc_t* ELEM,
     int i, pipeline_blocks;
     uint32_t _copy_loops_per_pipeline; 
     
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
+    
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     TIMER_DATA_TYPE start, end, start_total, end_total;
     long total_time;
@@ -654,6 +660,7 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
     uint8_t alignment, orig_alignment;
 //    int32_t orig_stack_index;
     
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     ddt_cuda_iov_dist_t* cuda_iov_dist_h_current;
     ddt_cuda_iov_dist_t* cuda_iov_dist_d_current;
 
@@ -740,8 +747,8 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
     while (cuda_iov_count > 0) {
         
         nb_blocks_used = 0;
-        cuda_iov_dist_h_current = cuda_iov_dist_h[cuda_streams->current_stream_id];
-        cuda_iov_dist_d_current = cuda_iov_dist_d[cuda_streams->current_stream_id];
+        cuda_iov_dist_h_current = current_cuda_device->cuda_iov_dist_h[cuda_streams->current_stream_id];
+        cuda_iov_dist_d_current = current_cuda_device->cuda_iov_dist_d[cuda_streams->current_stream_id];
         source_base = (unsigned char*)cuda_iov[0].iov_base; 
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
@@ -769,8 +776,6 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
             } else {
                 alignment = ALIGNMENT_CHAR;
             }
-            
-           // alignment = ALIGNMENT_DOUBLE;
 
             count_desc = length_per_iovec / alignment;
             residue_desc = length_per_iovec % alignment;
@@ -866,13 +871,7 @@ int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor
     move_time = ELAPSED_TIME( start, end );
     DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: DtoH memcpy in %ld microsec, transfer required %d\n", move_time, transfer_required ); );
 #endif
-    // float *vtmp = (float *)iov[0].iov_base;
-    // DT_CUDA_DEBUG ( opal_cuda_output(0, "packed iov buffer, total packed %d\n", total_packed); );
-    // for (uint32_t i = 0; i < total_packed/sizeof(float); i++) {
-    //     printf(" %1.f ", *vtmp);
-    //     vtmp ++;
-    // }
-    // printf("\n");
+
     iov[0].iov_len = total_packed;
     *max_data = total_packed;
     *out_size = 1;
@@ -908,6 +907,8 @@ void pack_predefined_data_cuda( dt_elem_desc_t* ELEM,
     unsigned char* _source = (*SOURCE) + _elem->disp;
     uint32_t nb_blocks, tasks_per_block, thread_per_block;
     unsigned char* _destination = *(DESTINATION);
+    
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
 
     _copy_blength = 8;//opal_datatype_basicDatatypes[_elem->common.type]->size;
     if( (_copy_count * _copy_blength) > *(SPACE) ) {

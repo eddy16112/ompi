@@ -24,6 +24,8 @@ int32_t opal_generic_simple_unpack_function_cuda_vector2( opal_convertor_t* pCon
     uint32_t iov_count;
     uint8_t free_required;
     uint32_t count_desc_tmp;
+    
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end;
@@ -197,6 +199,8 @@ int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConv
     uint32_t iov_count;
     uint8_t free_required;
     uint32_t count_desc_tmp;
+    
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end;
@@ -370,6 +374,7 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     uint8_t alignment, orig_alignment;
 //    int32_t orig_stack_index;
 
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     ddt_cuda_iov_dist_t* cuda_iov_dist_h_current;
     ddt_cuda_iov_dist_t* cuda_iov_dist_d_current;
 
@@ -447,8 +452,8 @@ int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvert
     while (cuda_iov_count > 0) {
 
         nb_blocks_used = 0;
-        cuda_iov_dist_h_current = cuda_iov_dist_h[cuda_streams->current_stream_id];
-        cuda_iov_dist_d_current = cuda_iov_dist_d[cuda_streams->current_stream_id];
+        cuda_iov_dist_h_current = current_cuda_device->cuda_iov_dist_h[cuda_streams->current_stream_id];
+        cuda_iov_dist_d_current = current_cuda_device->cuda_iov_dist_d[cuda_streams->current_stream_id];
         destination_base = (unsigned char*)cuda_iov[0].iov_base;
 
 #if defined (OPAL_DATATYPE_CUDA_TIMING)
@@ -736,7 +741,9 @@ void unpack_predefined_data_cuda( dt_elem_desc_t* ELEM,
     ddt_elem_desc_t* _elem = &((ELEM)->elem);
     unsigned char* _source = (*SOURCE);
     uint32_t nb_blocks, tasks_per_block, thread_per_block;
-    unsigned char* _destination = *(DESTINATION) + _elem->disp;;
+    unsigned char* _destination = *(DESTINATION) + _elem->disp;
+    
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
 
     _copy_blength = 8;//opal_datatype_basicDatatypes[_elem->common.type]->size;
     if( (_copy_count * _copy_blength) > *(SPACE) ) {
