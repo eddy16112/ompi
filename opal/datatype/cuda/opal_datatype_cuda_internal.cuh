@@ -19,6 +19,7 @@
 #define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
 
 
+#define NB_GPUS                 1
 #define IOV_ARRAY_SIZE          1
 #define DT_CUDA_BUFFER_SIZE    1024*1024*200
 #define DT_CUDA_FREE_LIST_SIZE  50
@@ -72,15 +73,16 @@ typedef struct {
     ddt_cuda_list_t buffer_used;
     size_t buffer_free_size;
     size_t buffer_used_size;
+    ddt_cuda_stream_t *cuda_streams;
+    ddt_cuda_iov_dist_t* cuda_iov_dist_h[NB_STREAMS];
+    ddt_cuda_iov_dist_t* cuda_iov_dist_d[NB_STREAMS];
 } ddt_cuda_device_t;
 
 extern ddt_cuda_list_t *cuda_free_list;
-extern ddt_cuda_device_t *cuda_device;
-extern ddt_cuda_stream_t* cuda_streams;
+extern ddt_cuda_device_t *cuda_devices;
+extern ddt_cuda_device_t *current_cuda_device;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
-extern ddt_cuda_iov_dist_t* cuda_iov_dist_h[NB_STREAMS];
-extern ddt_cuda_iov_dist_t* cuda_iov_dist_d[NB_STREAMS];
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 

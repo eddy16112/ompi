@@ -4,9 +4,9 @@
 extern "C"
 {
     
-void opal_datatype_cuda_init(void);
+int32_t opal_datatype_cuda_init(void);
 
-void opal_datatype_cuda_fini(void);
+int32_t opal_datatype_cuda_fini(void);
                                 
                                                 
 int32_t opal_generic_simple_pack_function_cuda_vector( opal_convertor_t* pConvertor,
@@ -82,8 +82,6 @@ void unpack_predefined_data_cuda( dt_elem_desc_t* ELEM,
                                   unsigned char** SOURCE,
                                   unsigned char** DESTINATION,
                                   size_t* SPACE );
-
-void opal_cuda_sync_device(void);
 
 int32_t opal_cuda_is_gpu_buffer(const void *ptr);
 

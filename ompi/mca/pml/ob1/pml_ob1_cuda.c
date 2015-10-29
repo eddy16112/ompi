@@ -114,7 +114,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
          * memory into RNDV message is expensive. */
         sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
         mca_bml_base_btl_t* bml_endpoint_btl = mca_bml_base_btl_array_get_index(&(sendreq->req_endpoint->btl_send), 0);
-        if ((bml_endpoint_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET) && CUDA_DDT_WITH_RDMA) {
+        if ((bml_endpoint_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET) && (opal_datatype_cuda_kernel_support == 1)) {
             unsigned char *base;
             size_t buffer_size = 0;
             if (convertor->local_size > bml_btl->btl->btl_cuda_ddt_pipeline_size) {
