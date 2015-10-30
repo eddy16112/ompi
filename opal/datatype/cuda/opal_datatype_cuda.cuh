@@ -35,7 +35,7 @@ void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
                                 unsigned char** DESTINATION,
                                 size_t* SPACE );
                                 
-void pack_contiguous_loop_cuda_memcpy2d( dt_elem_desc_t* ELEM,
+void pack_contiguous_loop_cuda_memcpy2d_d2h( dt_elem_desc_t* ELEM,
                                          uint32_t* COUNT,
                                          unsigned char** SOURCE,
                                          unsigned char** DESTINATION,
@@ -59,7 +59,7 @@ void unpack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
                                   unsigned char** DESTINATION,
                                   size_t* SPACE );
 
-void unpack_contiguous_loop_cuda_memcpy2d( dt_elem_desc_t* ELEM,
+void unpack_contiguous_loop_cuda_memcpy2d_d2h( dt_elem_desc_t* ELEM,
                                            uint32_t* COUNT,
                                            unsigned char** SOURCE,
                                            unsigned char** DESTINATION,
