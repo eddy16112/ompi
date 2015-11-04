@@ -39,7 +39,6 @@
 #include "opal/datatype/opal_convertor_internal.h"
 #if OPAL_CUDA_SUPPORT
 #include "opal/datatype/opal_datatype_cuda.h"
-#include "opal/datatype/opal_datatype_gpu.h"
 #define MEMCPY_CUDA( DST, SRC, BLENGTH, CONVERTOR ) \
     CONVERTOR->cbmemcpy( (DST), (SRC), (BLENGTH), (CONVERTOR) )
 #endif
@@ -562,11 +561,6 @@ int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
     convertor->flags |= CONVERTOR_RECV;
 #if OPAL_CUDA_SUPPORT
     mca_cuda_convertor_init(convertor, pUserBuf);
-#if OPAL_DATATYPE_CUDA_KERNEL
-    if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
-        opal_datatype_gpu_fini();
-    }
-#endif /* OPAL_DATATYPE_CUDA_KERNEL */
 #endif  /* OPAL_CUDA_SUPPORT */
 
     OPAL_CONVERTOR_PREPARE( convertor, datatype, count, pUserBuf );
@@ -616,11 +610,6 @@ int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
     convertor->flags |= CONVERTOR_SEND;
 #if OPAL_CUDA_SUPPORT
     mca_cuda_convertor_init(convertor, pUserBuf);
-#if OPAL_DATATYPE_CUDA_KERNEL
-    if (opal_datatype_gpu_init() != OPAL_SUCCESS) {
-        opal_datatype_gpu_fini();
-    }
-#endif /* OPAL_DATATYPE_CUDA_KERNEL */
 #endif  /* OPAL_CUDA_SUPPORT */
 
     OPAL_CONVERTOR_PREPARE( convertor, datatype, count, pUserBuf );
