@@ -4,30 +4,30 @@
 extern "C"
 {
     
-int32_t opal_datatype_cuda_init(void);
+int32_t opal_ddt_cuda_kernel_init(void);
 
-int32_t opal_datatype_cuda_fini(void);
+int32_t opal_ddt_cuda_kernel_fini(void);
                                 
                                                 
-int32_t opal_generic_simple_pack_function_cuda_vector( opal_convertor_t* pConvertor,
-                                                       struct iovec* iov, 
-                                                       uint32_t* out_size,
-                                                       size_t* max_data );
+int32_t opal_ddt_generic_simple_pack_function_cuda_vector( opal_convertor_t* pConvertor,
+                                                           struct iovec* iov, 
+                                                           uint32_t* out_size,
+                                                           size_t* max_data );
                                                 
-int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor,
-                                                    struct iovec* iov, 
-                                                    uint32_t* out_size,
-                                                    size_t* max_data );                                              
+int32_t opal_ddt_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor,
+                                                        struct iovec* iov, 
+                                                        uint32_t* out_size,
+                                                        size_t* max_data );                                              
                                                   
-int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvertor,
-                                                  struct iovec* iov, 
-                                                  uint32_t* out_size,
-                                                  size_t* max_data );  
+int32_t opal_ddt_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvertor,
+                                                          struct iovec* iov, 
+                                                          uint32_t* out_size,
+                                                          size_t* max_data );  
                                                 
-int32_t opal_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConvertor,
-                                                         struct iovec* iov, 
-                                                         uint32_t* out_size,
-                                                         size_t* max_data );
+int32_t opal_ddt_generic_simple_unpack_function_cuda_vector( opal_convertor_t* pConvertor,
+                                                             struct iovec* iov, 
+                                                             uint32_t* out_size,
+                                                             size_t* max_data );
 
 void pack_contiguous_loop_cuda( dt_elem_desc_t* ELEM,
                                 uint32_t* COUNT,
@@ -83,15 +83,15 @@ void unpack_predefined_data_cuda( dt_elem_desc_t* ELEM,
                                   unsigned char** DESTINATION,
                                   size_t* SPACE );
 
-int32_t opal_cuda_is_gpu_buffer(const void *ptr);
+int32_t opal_ddt_cuda_is_gpu_buffer(const void *ptr);
 
-void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id);
+void* opal_ddt_cuda_malloc_gpu_buffer(size_t size, int gpu_id);
 
-void opal_cuda_free_gpu_buffer(void *addr, int gpu_id);
+void opal_ddt_cuda_free_gpu_buffer(void *addr, int gpu_id);
 
-void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count);
+void opal_ddt_cuda_d2dcpy_async(void* dst, const void* src, size_t count);
 
-void opal_cuda_d2dcpy(void* dst, const void* src, size_t count);
+void opal_ddt_cuda_d2dcpy(void* dst, const void* src, size_t count);
 
 void opal_dump_cuda_list(ddt_cuda_list_t *list);
 

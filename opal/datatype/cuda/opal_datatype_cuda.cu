@@ -175,7 +175,7 @@ void opal_cuda_output(int output_id, const char *format, ...)
     }
 }
 
-int32_t opal_datatype_cuda_init(void)
+int32_t opal_ddt_cuda_kernel_init(void)
 {
     uint32_t i, j;
     int device;
@@ -245,7 +245,7 @@ int32_t opal_datatype_cuda_init(void)
     return OPAL_SUCCESS;
 }
 
-int32_t opal_datatype_cuda_fini(void)
+int32_t opal_ddt_cuda_kernel_fini(void)
 {
     uint32_t i, j;
     
@@ -275,7 +275,7 @@ int32_t opal_datatype_cuda_fini(void)
     return OPAL_SUCCESS;
 }
 
-int32_t opal_cuda_is_gpu_buffer(const void *ptr)
+int32_t opal_ddt_cuda_is_gpu_buffer(const void *ptr)
 {
     int res;
     CUmemorytype memType;
@@ -291,7 +291,7 @@ int32_t opal_cuda_is_gpu_buffer(const void *ptr)
     return (memType == CU_MEMORYTYPE_DEVICE) ? 1 : 0;
 }
 
-void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
+void* opal_ddt_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
 {
     int dev_id;
     cudaGetDevice(&dev_id);
@@ -330,7 +330,7 @@ void* opal_cuda_malloc_gpu_buffer(size_t size, int gpu_id)
     return NULL;
 }
 
-void opal_cuda_free_gpu_buffer(void *addr, int gpu_id)
+void opal_ddt_cuda_free_gpu_buffer(void *addr, int gpu_id)
 {
     ddt_cuda_device_t *device = &cuda_devices[gpu_id];
     ddt_cuda_buffer_t *ptr = device->buffer_used.head;
@@ -369,12 +369,12 @@ void opal_cuda_check_error(cudaError_t err)
     }
 }
 
-void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
+void opal_ddt_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
 {
     cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->opal_cuda_stream[0]);
 }
 
-void opal_cuda_d2dcpy(void* dst, const void* src, size_t count)
+void opal_ddt_cuda_d2dcpy(void* dst, const void* src, size_t count)
 {
     cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, current_cuda_device->cuda_streams->opal_cuda_stream[0]);
     cudaStreamSynchronize(current_cuda_device->cuda_streams->opal_cuda_stream[0]);
