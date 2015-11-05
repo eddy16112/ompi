@@ -114,7 +114,6 @@ struct opal_convertor_t {
 
     unsigned char *               gpu_buffer_ptr; /**< GPU buffer used for pack/unpack */
     size_t                        gpu_buffer_size;
-    uint64_t *                    pipeline_event[MAX_IPC_EVENT_HANDLE]; /**< cuda event for pipeline */
 #endif
     /* size: 248, cachelines: 4, members: 20 */
     /* last cacheline: 56 bytes */

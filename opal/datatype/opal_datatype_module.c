@@ -252,7 +252,7 @@ int32_t opal_datatype_finalize( void )
     opal_convertor_destroy_masters();
 
 #if OPAL_CUDA_SUPPORT
-    opal_datatype_cuda_kernel_support_fini();
+    opal_cuda_kernel_support_fini();
 #endif /* OPAL_CUDA_SUPPORT */
 
     return OPAL_SUCCESS;

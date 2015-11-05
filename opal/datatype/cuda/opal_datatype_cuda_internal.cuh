@@ -120,14 +120,6 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
 
 __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
 
-__global__ void opal_empty_kernel(uint32_t copy_loops,
-                                  size_t size,
-                                  OPAL_PTRDIFF_TYPE extent,
-                                  unsigned char* source,
-                                  unsigned char* destination);
-                            
-__global__ void opal_empty_kernel_noargs();
-
 void opal_cuda_output(int output_id, const char *format, ...);
 
 void opal_cuda_check_error(cudaError_t err);
