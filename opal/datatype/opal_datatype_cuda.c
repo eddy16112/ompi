@@ -61,7 +61,7 @@ void opal_cuda_add_initialization_function(int (*fptr)(opal_common_cuda_function
  * is enabled or not.  If CUDA is not enabled, then short circuit out
  * for all future calls.
  */
-void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf)
+void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf, const struct opal_datatype_t* datatype)
 {
     /* Only do the initialization on the first GPU access */
     if (!initialized) {
@@ -84,6 +84,18 @@ void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf)
     if (OPAL_SUCCESS != opal_cuda_kernel_support_init()) {
         opal_cuda_kernel_support_fini();    
     }
+    if (opal_datatype_cuda_kernel_support == 1 && datatype->cuda_iov_is_cached == 0) {
+        struct opal_datatype_t* datatype_tmp = (opal_datatype_t *)datatype;
+        datatype_tmp->cuda_iov_dist = opal_cuda_iov_dist_init();
+        if (datatype_tmp->cuda_iov_dist == (void*)0xDEADBEEF || datatype_tmp->cuda_iov_dist == NULL) {
+            /* either cuda iov cache is not enabled or cuda_iov_cache malloc is failed, then we do not cache cuda iov */
+            datatype_tmp->cuda_iov_is_cached = -1;
+        } else {
+            /* cuda iov buffer is ready , the value will be marked to 2 when caching is finished*/
+            datatype_tmp->cuda_iov_is_cached = 1;
+        }
+    }
+    
 }
 
 /* Checks the type of pointer
@@ -241,6 +253,8 @@ int32_t opal_cuda_kernel_support_init(void)
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_malloc_gpu_buffer );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_d2dcpy_async );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_d2dcpy );
+        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_iov_dist_init );
+        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_iov_dist_fini );
         
         if (OPAL_SUCCESS != cuda_kernel_table.opal_ddt_cuda_kernel_init_p()) {
             return OPAL_ERROR;
@@ -353,6 +367,25 @@ void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
         cuda_kernel_table.opal_ddt_cuda_d2dcpy_async_p(dst, src, count);
     } else {
         opal_output(0, "opal_ddt_cuda_d2dcpy_async function pointer is NULL\n");
+    }
+}
+
+void* opal_cuda_iov_dist_init(void)
+{
+    if (cuda_kernel_table.opal_ddt_cuda_iov_dist_init_p != NULL) {
+        return cuda_kernel_table.opal_ddt_cuda_iov_dist_init_p();
+    } else {
+        opal_output(0, "opal_ddt_cuda_iov_dist_init function pointer is NULL\n");
+        return NULL;
+    }
+}
+
+void opal_cuda_iov_dist_fini(void *cuda_iov_dist)
+{
+    if (cuda_kernel_table.opal_ddt_cuda_iov_dist_fini_p != NULL) {
+        cuda_kernel_table.opal_ddt_cuda_iov_dist_fini_p(cuda_iov_dist);
+    } else {
+        opal_output(0, "opal_ddt_cuda_iov_dist_fini function pointer is NULL\n");
     }
 }
 
