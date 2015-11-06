@@ -95,6 +95,12 @@ void opal_ddt_cuda_d2dcpy(void* dst, const void* src, size_t count);
 
 void opal_dump_cuda_list(ddt_cuda_list_t *list);
 
+void* opal_ddt_cuda_iov_dist_init(void);
+
+void opal_ddt_cuda_iov_dist_fini(void *cuda_iov_dist);
+
+void pack_iov_cached(opal_convertor_t* pConvertor, unsigned char *destination);
+
 }
                             
 #endif  /* OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED */

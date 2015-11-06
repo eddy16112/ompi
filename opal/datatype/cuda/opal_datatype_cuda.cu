@@ -275,6 +275,35 @@ int32_t opal_ddt_cuda_kernel_fini(void)
     return OPAL_SUCCESS;
 }
 
+void* opal_ddt_cuda_iov_dist_init(void) 
+{
+#if OPAL_DATATYPE_CUDA_IOV_CACHE 
+    ddt_cuda_iov_dist_t *p = NULL;
+    cudaMalloc((void **)(&p), sizeof(ddt_cuda_iov_dist_t) * NUM_CUDA_IOV_PER_DDT);
+    if (p != NULL) {
+        DT_CUDA_DEBUG( opal_cuda_output( 2, "Malloc cuda_iov_dist for ddt is successed %p.\n", p); );
+        return p;
+    } else {
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "Malloc cuda_iov_dist for ddt is failed.\n"); );
+        return NULL;
+    }
+#else
+    DT_CUDA_DEBUG( opal_cuda_output( 2, "cuda iov cache is not enabled.\n"); );
+    return (void *)0xDEADBEEF;
+#endif /* OPAL_DATATYPE_CUDA_IOV_CACHE */
+}
+
+void opal_ddt_cuda_iov_dist_fini(void* cuda_iov_dist) 
+{
+#if OPAL_DATATYPE_CUDA_IOV_CACHE
+    ddt_cuda_iov_dist_t *p = (ddt_cuda_iov_dist_t *) cuda_iov_dist;
+    if (p != NULL) {
+        cudaFree(p);
+        DT_CUDA_DEBUG( opal_cuda_output( 2, "Free cuda_iov_dist for ddt is successed %p.\n", p); );
+    }
+#endif /* OPAL_DATATYPE_CUDA_IOV_CACHE */
+}
+
 int32_t opal_ddt_cuda_is_gpu_buffer(const void *ptr)
 {
     int res;
