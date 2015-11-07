@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2006 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2014 The University of Tennessee and The University
+ * Copyright (c) 2004-2015 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2006 High Performance Computing Center Stuttgart,
@@ -289,6 +289,17 @@ opal_convertor_to_iov(struct opal_convertor_t *convertor,
                       struct iovec **iov,
                       uint32_t *iov_count,
                       size_t *max_data);
+
+/**
+ * A straighforward description of the datatype in terms of a NULL
+ * based iovec (so basically displacements from the begining of a pointer,
+ * will be generated and stored in the datatype itself. This description
+ * can be used to pack/unpack the data manually.
+ */
+OPAL_DECLSPEC int
+opal_convertor_raw_cached(struct opal_convertor_t *convertor,
+                          const struct iovec **iov,
+                          uint32_t* iov_count);
 /*
  * Upper level does not need to call the _nocheck function directly.
  */

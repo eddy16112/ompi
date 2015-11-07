@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2006 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2010 The University of Tennessee and The University
+ * Copyright (c) 2004-2015 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2006 High Performance Computing Center Stuttgart,
@@ -137,6 +137,9 @@ struct opal_datatype_t {
     int8_t             cuda_iov_is_cached;
 #endif /* OPAL_CUDA_SUPPORT */
     /* last cacheline: 32 bytes */
+
+    struct iovec*      cached_iovec;
+    uint32_t           cached_iovec_count;
 };
 
 typedef struct opal_datatype_t opal_datatype_t;

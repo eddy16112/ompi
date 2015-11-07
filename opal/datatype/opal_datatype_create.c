@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2006 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2013 The University of Tennessee and The University
+ * Copyright (c) 2004-2015 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2006 High Performance Computing Center Stuttgart,
@@ -53,6 +53,9 @@ static void opal_datatype_construct( opal_datatype_t* pData )
     pData->opt_desc.length    = 0;
     pData->opt_desc.used      = 0;
 
+    pData->cached_iovec       = NULL;
+    pData->cached_iovec_count = 0;
+
     for( i = 0; i < OPAL_DATATYPE_MAX_SUPPORTED; i++ )
         pData->btypes[i]      = 0;
 }
@@ -82,6 +85,11 @@ static void opal_datatype_destruct( opal_datatype_t* datatype )
 
     /* make sure the name is set to empty */
     datatype->name[0] = '\0';
+
+    if( NULL != datatype->cached_iovec ) {
+        free(datatype->cached_iovec);
+        datatype->cached_iovec = NULL;
+    }
 }
 
 OBJ_CLASS_INSTANCE(opal_datatype_t, opal_object_t, opal_datatype_construct, opal_datatype_destruct);
