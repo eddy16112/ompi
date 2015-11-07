@@ -137,6 +137,9 @@ struct opal_datatype_t {
     int8_t             cuda_iov_is_cached;
 #endif /* OPAL_CUDA_SUPPORT */
     /* last cacheline: 32 bytes */
+
+    struct iovec*      cached_iovec;
+    uint32_t           cached_iovec_count;
 };
 
 typedef struct opal_datatype_t opal_datatype_t;
