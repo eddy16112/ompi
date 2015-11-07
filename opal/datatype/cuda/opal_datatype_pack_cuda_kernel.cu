@@ -43,10 +43,10 @@ __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
     }
 }
 
-__global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
+__global__ void opal_generic_simple_pack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used)
 {
     uint32_t i, _copy_count;
-    size_t src_offset, dst_offset;
+    unsigned char *src, *dst;
     uint8_t alignment;
     unsigned char *_source_tmp, *_destination_tmp;
     
@@ -63,8 +63,8 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
     __syncthreads();
     
     for (i = 0; i < nb_tasks; i++) {
-        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].src_offset;
-        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst_offset;
+        src = cuda_iov_dist[blockIdx.x + i * gridDim.x].src;
+        dst = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst;
         _copy_count = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_elements;
         alignment = cuda_iov_dist[blockIdx.x + i * gridDim.x].element_alignment;
         
@@ -73,8 +73,8 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
         // }
         
         if (threadIdx.x < _copy_count) {
-            _source_tmp = source_base + src_offset + threadIdx.x * alignment;
-            _destination_tmp = destination_base + dst_offset + threadIdx.x * alignment;
+            _source_tmp = src + threadIdx.x * alignment;
+            _destination_tmp = dst + threadIdx.x * alignment;
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
             if (alignment == ALIGNMENT_DOUBLE) {
                 *((long *)_destination_tmp) = *((long *)_source_tmp);
@@ -84,6 +84,64 @@ __global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* c
                 * _destination_tmp = *_source_tmp;
             }
 #endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
+        }
+    }
+}
+
+__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* source_base)
+{
+    uint32_t i, j;
+    size_t src_offset;
+    unsigned char *dst;
+    unsigned char *_source_tmp, *_destination_tmp;
+    
+    __shared__ uint32_t nb_tasks;
+    __shared__ uint32_t copy_count;
+    __shared__ uint8_t alignment;
+    
+    if (threadIdx.x == 0) {
+        nb_tasks = nb_blocks_used / gridDim.x;
+        if (blockIdx.x < (nb_blocks_used % gridDim.x)) {
+            nb_tasks ++;
+        }
+   //     printf("nb_tasks %d, griddim %d, nb_blocks_used %d, bloid %d \n", nb_tasks, gridDim.x, nb_blocks_used, blockIdx.x);
+    }
+    __syncthreads();
+    
+    for (i = 0; i < nb_tasks; i++) {
+        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].ptr_offset;
+        dst = (unsigned char *)cuda_iov_contig_buf_d[blockIdx.x + i * gridDim.x];
+        
+        if (threadIdx.x == 0) {
+            _source_tmp = source_base + src_offset;
+            _destination_tmp = dst;
+            uint32_t _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
+            /* block size is either multiple of ALIGNMENT_DOUBLE or residule */
+            if ((uintptr_t)(_source_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_destination_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
+                alignment = ALIGNMENT_DOUBLE;
+            } else if ((uintptr_t)(_source_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_destination_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
+                alignment = ALIGNMENT_FLOAT;
+            } else {
+                alignment = ALIGNMENT_CHAR;
+            }
+            copy_count = _nb_bytes / alignment;
+        }
+        __syncthreads();
+        
+        for (j = threadIdx.x; j < copy_count; j += blockDim.x) {
+            if (j < copy_count) {
+                _source_tmp = source_base + src_offset + j * alignment;
+                _destination_tmp = dst + j * alignment;
+#if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
+                if (alignment == ALIGNMENT_DOUBLE) {
+                    *((long *)_destination_tmp) = *((long *)_source_tmp);
+                } else if (alignment == ALIGNMENT_FLOAT) {
+                    *((int *)_destination_tmp) = *((int *)_source_tmp);
+                } else {
+                    * _destination_tmp = *_source_tmp;
+                }
+#endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
+            }
         }
     }
 }
