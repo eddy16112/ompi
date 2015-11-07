@@ -95,6 +95,9 @@ void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf, 
             datatype_tmp->cuda_iov_is_cached = 1;
         }
     }
+    convertor->current_cuda_iov_count = 0;
+    convertor->current_iov_pos = 0;
+    convertor->current_iov_partial_length = 0;
     
 }
 
