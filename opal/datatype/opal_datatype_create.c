@@ -102,7 +102,7 @@ static void opal_datatype_destruct( opal_datatype_t* datatype )
 #if OPAL_CUDA_SUPPORT   
     /* free cuda iov */
     if (opal_datatype_cuda_kernel_support == 1 && datatype->cached_cuda_iov != NULL) {
-        opal_cached_cuda_iov_fini((void*)datatype->cached_cuda_iov);
+        opal_cached_cuda_iov_fini(datatype->cached_cuda_iov);
         datatype->cached_cuda_iov = NULL;
     }
 #endif /* OPAL_CUDA_SUPPORT */

@@ -46,77 +46,60 @@ __global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_
     }
 }
 
-__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uint32_t cuda_iov_count, uint32_t ddt_extent, uint32_t current_count, int nb_blocks_used, unsigned char* destination_base, unsigned char* source_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end)
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end)
 {
     uint32_t i, j;
-    size_t dst_offset, src_offset;
+    size_t dst_offset;
+    unsigned char *src;
     unsigned char *_source_tmp, *_destination_tmp;
-    uint32_t _nb_bytes;
-    uint32_t current_cuda_iov_pos = cuda_iov_pos;
-    size_t source_disp = cuda_iov_dist[current_cuda_iov_pos].contig_disp;
-    size_t source_partial_disp = 0;
-    size_t contig_disp; 
-    uint32_t _my_cuda_iov_pos;
-    uint32_t _my_cuda_iov_iteration;
-    size_t ddt_size = cuda_iov_dist[cuda_iov_count].contig_disp;
-
+    
     __shared__ uint32_t nb_tasks;
-    uint32_t copy_count;
-    uint8_t alignment;
+    __shared__ uint32_t copy_count;
+    __shared__ uint8_t alignment;
     
     if (threadIdx.x == 0) {
         nb_tasks = nb_blocks_used / gridDim.x;
         if (blockIdx.x < nb_blocks_used % gridDim.x) {
             nb_tasks ++;
         }
-     //   printf("cuda_iov_count %d, ddt_extent %d, current_count %d, ddt_size %d\n", cuda_iov_count, ddt_extent, current_count, ddt_size);
     }
     __syncthreads();
     
-    if (cuda_iov_partial_length_start != 0) {
-        source_partial_disp = (cuda_iov_dist[current_cuda_iov_pos+1].contig_disp - cuda_iov_dist[current_cuda_iov_pos].contig_disp) - cuda_iov_partial_length_start;
-    }
-    
     for (i = 0; i < nb_tasks; i++) {
-        /* these 3 variables are used multiple times, so put in in register */
-        _my_cuda_iov_pos = (blockIdx.x + i * gridDim.x + current_cuda_iov_pos) % cuda_iov_count;
-        _my_cuda_iov_iteration = (blockIdx.x + i * gridDim.x + current_cuda_iov_pos) / cuda_iov_count;
-        contig_disp = cuda_iov_dist[_my_cuda_iov_pos].contig_disp; 
-        
-        src_offset = contig_disp + ddt_size * _my_cuda_iov_iteration - source_disp - source_partial_disp;
-        dst_offset = cuda_iov_dist[_my_cuda_iov_pos].ncontig_disp + (_my_cuda_iov_iteration + current_count) * ddt_extent;
-        _nb_bytes = cuda_iov_dist[_my_cuda_iov_pos + 1].contig_disp - contig_disp;
-
+        src = (unsigned char *)cuda_iov_contig_buf_d[blockIdx.x + i * gridDim.x];
+        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].ptr_offset;
         if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
-            src_offset = contig_disp + ddt_size * _my_cuda_iov_iteration - source_disp;
-            dst_offset = dst_offset + _nb_bytes - cuda_iov_partial_length_start;  
-            _nb_bytes = cuda_iov_partial_length_start;
-        } else if (i == nb_tasks-1 && (blockIdx.x == (nb_blocks_used-1) % gridDim.x) && cuda_iov_partial_length_end != 0) {
-            _nb_bytes = cuda_iov_partial_length_end;
+         //   if (threadIdx.x == 0) printf("cuda_iov_partial_length_start %d", cuda_iov_partial_length_start);
+            dst_offset = dst_offset + cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes - cuda_iov_partial_length_start; 
         }
-        
-        _destination_tmp = destination_base + dst_offset; 
-        _source_tmp = source_base + src_offset;
-        if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)(_source_tmp) % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
-            alignment = ALIGNMENT_DOUBLE;
-        } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)(_source_tmp) % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
-            alignment = ALIGNMENT_FLOAT;
-        } else {
-            alignment = ALIGNMENT_CHAR;
-        }
-        copy_count = _nb_bytes / alignment;
-   /*     
-        if (threadIdx.x == 0 && nb_tasks != 0) {
-            printf("unpack block %d, src_offset %ld, dst_offset %ld, count %d, nb_bytes %d, nb_tasks %d, i %d\n", blockIdx.x, src_offset, dst_offset, copy_count, _nb_bytes, nb_tasks, i);
+        if (threadIdx.x == 0) {
+            _source_tmp = src;
+            _destination_tmp = destination_base + dst_offset;
+            uint32_t _nb_bytes = 0;
+            if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
+                _nb_bytes = cuda_iov_partial_length_start;
+            } else if (i == nb_tasks-1 && (blockIdx.x == (nb_blocks_used-1) % gridDim.x) && cuda_iov_partial_length_end != 0) {
+                _nb_bytes = cuda_iov_partial_length_end;
+            } else {
+                _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
+            }
+            if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_source_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
+                alignment = ALIGNMENT_DOUBLE;
+            } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_source_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
+                alignment = ALIGNMENT_FLOAT;
+            } else {
+                alignment = ALIGNMENT_CHAR;
+            }
+            copy_count = _nb_bytes / alignment;
         }
         __syncthreads();
-     */   
+        
         for (j = threadIdx.x; j < copy_count; j += blockDim.x) {
 /*            if (threadIdx.x == 0) {
                 if (copy_count > blockDim.x) printf("copy_count %d, dim %d\n", copy_count, blockDim.x);
             }*/
             if (j < copy_count) {
-                _source_tmp = source_base + src_offset + j * alignment;
+                _source_tmp = src + j * alignment;
                 _destination_tmp = destination_base + dst_offset + j * alignment;
   /*              if (threadIdx.x == 0) {
                     printf("_src %p, dst %p, alignment %d, blk %d, j %d, count %d\n", _source_tmp, _destination_tmp, alignment, blockIdx.x, j, copy_count);
