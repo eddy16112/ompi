@@ -6,10 +6,10 @@
 #include <stdio.h> 
 
 
-__global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
+__global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used)
 {
     uint32_t i, _copy_count;
-    size_t src_offset, dst_offset;
+    unsigned char *src, *dst;
     uint8_t alignment;
     unsigned char *_source_tmp, *_destination_tmp;
     
@@ -24,14 +24,14 @@ __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t*
     __syncthreads();
     
     for (i = 0; i < nb_tasks; i++) {
-        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].src_offset;
-        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst_offset;
+        src = cuda_iov_dist[blockIdx.x + i * gridDim.x].src;
+        dst = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst;
         _copy_count = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_elements;
         alignment = cuda_iov_dist[blockIdx.x + i * gridDim.x].element_alignment;
         
         if (threadIdx.x < _copy_count) {
-            _source_tmp = source_base + src_offset + threadIdx.x * alignment;
-            _destination_tmp = destination_base + dst_offset + threadIdx.x * alignment;
+            _source_tmp = src + threadIdx.x * alignment;
+            _destination_tmp = dst + threadIdx.x * alignment;
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
                 if (alignment == ALIGNMENT_DOUBLE) {
                     *((long *)_destination_tmp) = *((long *)_source_tmp);
@@ -45,6 +45,80 @@ __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t*
         }
     }
 }
+
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end)
+{
+    uint32_t i, j;
+    size_t dst_offset;
+    unsigned char *src;
+    unsigned char *_source_tmp, *_destination_tmp;
+    
+    __shared__ uint32_t nb_tasks;
+    __shared__ uint32_t copy_count;
+    __shared__ uint8_t alignment;
+    
+    if (threadIdx.x == 0) {
+        nb_tasks = nb_blocks_used / gridDim.x;
+        if (blockIdx.x < nb_blocks_used % gridDim.x) {
+            nb_tasks ++;
+        }
+    }
+    __syncthreads();
+    
+    for (i = 0; i < nb_tasks; i++) {
+        src = (unsigned char *)cuda_iov_contig_buf_d[blockIdx.x + i * gridDim.x];
+        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].ptr_offset;
+        if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
+         //   if (threadIdx.x == 0) printf("cuda_iov_partial_length_start %d", cuda_iov_partial_length_start);
+            dst_offset = dst_offset + cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes - cuda_iov_partial_length_start; 
+        }
+        if (threadIdx.x == 0) {
+            _source_tmp = src;
+            _destination_tmp = destination_base + dst_offset;
+            uint32_t _nb_bytes = 0;
+            if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
+                _nb_bytes = cuda_iov_partial_length_start;
+            } else if (i == nb_tasks-1 && (blockIdx.x == (nb_blocks_used-1) % gridDim.x) && cuda_iov_partial_length_end != 0) {
+                _nb_bytes = cuda_iov_partial_length_end;
+            } else {
+                _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
+            }
+            if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_source_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
+                alignment = ALIGNMENT_DOUBLE;
+            } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_source_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
+                alignment = ALIGNMENT_FLOAT;
+            } else {
+                alignment = ALIGNMENT_CHAR;
+            }
+            copy_count = _nb_bytes / alignment;
+        }
+        __syncthreads();
+        
+        for (j = threadIdx.x; j < copy_count; j += blockDim.x) {
+/*            if (threadIdx.x == 0) {
+                if (copy_count > blockDim.x) printf("copy_count %d, dim %d\n", copy_count, blockDim.x);
+            }*/
+            if (j < copy_count) {
+                _source_tmp = src + j * alignment;
+                _destination_tmp = destination_base + dst_offset + j * alignment;
+  /*              if (threadIdx.x == 0) {
+                    printf("_src %p, dst %p, alignment %d, blk %d, j %d, count %d\n", _source_tmp, _destination_tmp, alignment, blockIdx.x, j, copy_count);
+                }*/
+#if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
+                    if (alignment == ALIGNMENT_DOUBLE) {
+                        *((long *)_destination_tmp) = *((long *)_source_tmp);
+                    } else if (alignment == ALIGNMENT_FLOAT) {
+                        *((int *)_destination_tmp) = *((int *)_source_tmp);
+                    } else {
+                        * _destination_tmp = *_source_tmp;
+                    }
+            //   printf("src %p, %1.f | dst %p, %1.f\n", _source_tmp, *_source_tmp, _destination_tmp, *_destination_tmp);
+#endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
+            }
+        }
+    }
+}
+
 __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
                                                            size_t size,
                                                            OPAL_PTRDIFF_TYPE extent,
