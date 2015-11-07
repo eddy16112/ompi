@@ -18,7 +18,7 @@
 #define OPAL_DATATYPE_VECTOR_USE_ZEROCPY   0
 #define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
 #define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL   1
-#define OPAL_DATATYPE_CUDA_IOV_CACHE    1
+#define OPAL_DATATYPE_CUDA_IOV_CACHE    0
 
 
 
@@ -37,7 +37,7 @@
 #define CUDA_IOV_MAX_TASK_PER_BLOCK 400
 #define ALIGNMENT_DOUBLE    8
 #define ALIGNMENT_FLOAT     4
-#define ALIGNMENT_CHAR      18
+#define ALIGNMENT_CHAR      1
 #define NUM_CUDA_IOV_PER_DDT    100000
 
 #define TIMER_DATA_TYPE struct timeval
@@ -139,6 +139,10 @@ int32_t opal_convertor_set_position_nocheck( opal_convertor_t* convertor, size_t
 int32_t opal_convertor_raw( opal_convertor_t* pConvertor, 
 		                    struct iovec* iov, uint32_t* iov_count,
 		                    size_t* length );
+
+int opal_convertor_raw_cached(struct opal_convertor_t *convertor,
+                              const struct iovec **iov,
+                              uint32_t* iov_count);
 }
 
 #endif  /* OPAL_DATATYPE_CUDA_INTERNAL_H_HAS_BEEN_INCLUDED */

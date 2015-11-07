@@ -1211,12 +1211,12 @@ int main( int argc, char* argv[] )
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
     int mat_size = 500;
-    for (mat_size = 6000; mat_size <= 6000; mat_size +=500) {
+    for (mat_size = 2000; mat_size <= 2000; mat_size +=500) {
         pdt = upper_matrix(mat_size);
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 1; i <= 2; i++) {
-    //            local_copy_with_convertor(pdt, 1, 1024*1024*200, mat_size);
+            for (i = 1; i <= 1; i++) {
+                local_copy_with_convertor(pdt, 1, 4000001, mat_size);
             }
         }
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
@@ -1224,10 +1224,10 @@ int main( int argc, char* argv[] )
     
     ompi_datatype_t *column, *matt;
     mat_size = 1000;
-    ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
-    ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
-    ompi_datatype_commit( &matt );
-    local_copy_with_convertor_mat(matt, 1, 200000000, mat_size);
+ //   ompi_datatype_create_vector( mat_size, 1, mat_size, MPI_DOUBLE, &column );
+ //   ompi_datatype_create_hvector( mat_size, 1, sizeof(double), column, &matt );
+ //   ompi_datatype_commit( &matt );
+ //   local_copy_with_convertor_mat(matt, 1, 200000000, mat_size);
     
     
     int packed_size = 256;
@@ -1285,7 +1285,7 @@ int main( int argc, char* argv[] )
         pdt = create_vector_type( MPI_DOUBLE, 1000, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 0; i < 1; i++) {
-                 vector_ddt( pdt, 1, pdt, 1, 2000000 , 1000, blk_len, blk_len*2);
+        //         vector_ddt( pdt, 1, pdt, 1, 2000000 , 1000, blk_len, blk_len*2);
      //          vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
