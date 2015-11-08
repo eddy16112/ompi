@@ -84,7 +84,10 @@ void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf, 
     if (OPAL_SUCCESS != opal_cuda_kernel_support_init()) {
         opal_cuda_kernel_support_fini();    
     }
-    if (opal_datatype_cuda_kernel_support == 1 && datatype->cuda_iov_is_cached == 0) {
+
+#if 0    
+    convertor->flags &= ~CONVERTOR_CUDA;  
+    if (opal_datatype_cuda_kernel_support == 1 && datatype->cuda_iov_is_cached == 0 && opal_convertor_need_buffers(convertor) == true) {
         struct opal_datatype_t* datatype_tmp = (opal_datatype_t *)datatype;
         datatype_tmp->cuda_iov_dist = opal_cuda_iov_dist_init();
         if (datatype_tmp->cuda_iov_dist == (void*)0xDEADBEEF || datatype_tmp->cuda_iov_dist == NULL) {
@@ -95,6 +98,8 @@ void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf, 
             datatype_tmp->cuda_iov_is_cached = 1;
         }
     }
+    convertor->flags |= CONVERTOR_CUDA;
+#endif
     convertor->current_cuda_iov_count = 0;
     convertor->current_iov_pos = 0;
     convertor->current_iov_partial_length = 0;

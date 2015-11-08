@@ -48,12 +48,13 @@ __global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_
 
 __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
 {
-    uint32_t i, _copy_count;
+    uint32_t i, j;
     size_t src_offset, dst_offset;
-    uint8_t alignment;
     unsigned char *_source_tmp, *_destination_tmp;
     
     __shared__ uint32_t nb_tasks;
+    __shared__ uint32_t copy_count;
+    __shared__ uint8_t alignment;
     
     if (threadIdx.x == 0) {
         nb_tasks = nb_blocks_used / gridDim.x;
@@ -66,22 +67,40 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
     for (i = 0; i < nb_tasks; i++) {
         src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].src_offset;
         dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst_offset;
-        _copy_count = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_elements;
-        alignment = cuda_iov_dist[blockIdx.x + i * gridDim.x].element_alignment;
         
-        if (threadIdx.x < _copy_count) {
-            _source_tmp = source_base + src_offset + threadIdx.x * alignment;
-            _destination_tmp = destination_base + dst_offset + threadIdx.x * alignment;
+        if (threadIdx.x == 0) {
+            _source_tmp = source_base + src_offset;
+            _destination_tmp = destination_base + dst_offset;
+            uint32_t _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
+            if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_source_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes >= ALIGNMENT_DOUBLE) {
+                alignment = ALIGNMENT_DOUBLE;
+            } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_source_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes >= ALIGNMENT_FLOAT) {
+                alignment = ALIGNMENT_FLOAT;
+            } else {
+                alignment = ALIGNMENT_CHAR;
+            }
+            copy_count = _nb_bytes / alignment;
+        }
+        __syncthreads();
+        
+        for (j = threadIdx.x; j < copy_count; j += blockDim.x) {
+/*            if (threadIdx.x == 0) {
+                if (copy_count > blockDim.x) printf("copy_count %d, dim %d\n", copy_count, blockDim.x);
+            }*/
+            if (j < copy_count) {
+                _source_tmp = source_base + src_offset + j * alignment;
+                _destination_tmp = destination_base + dst_offset + j * alignment;
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
-                if (alignment == ALIGNMENT_DOUBLE) {
-                    *((long *)_destination_tmp) = *((long *)_source_tmp);
-                } else if (alignment == ALIGNMENT_FLOAT) {
-                    *((int *)_destination_tmp) = *((int *)_source_tmp);
-                } else {
-                    * _destination_tmp = *_source_tmp;
-                }
-        //   printf("src %p, %1.f | dst %p, %1.f\n", _source_tmp, *_source_tmp, _destination_tmp, *_destination_tmp);
+                    if (alignment == ALIGNMENT_DOUBLE) {
+                        *((long *)_destination_tmp) = *((long *)_source_tmp);
+                    } else if (alignment == ALIGNMENT_FLOAT) {
+                        *((int *)_destination_tmp) = *((int *)_source_tmp);
+                    } else {
+                        * _destination_tmp = *_source_tmp;
+                    }
+            //   printf("src %p, %1.f | dst %p, %1.f\n", _source_tmp, *_source_tmp, _destination_tmp, *_destination_tmp);
 #endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
+            }
         }
     }
 }

@@ -27,6 +27,10 @@
 #include "opal/datatype/opal_datatype_internal.h"
 #include "limits.h"
 #include "opal/prefetch.h"
+#if OPAL_CUDA_SUPPORT
+//#include "opal/datatype/opal_convertor.h"
+//#include "opal/datatype/opal_datatype_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */ 
 
 static void opal_datatype_construct( opal_datatype_t* pData )
 {
@@ -90,6 +94,15 @@ static void opal_datatype_destruct( opal_datatype_t* datatype )
         free(datatype->cached_iovec);
         datatype->cached_iovec = NULL;
     }
+    
+#if OPAL_CUDA_SUPPORT   
+    /* free cuda iov */
+/*    if (opal_datatype_cuda_kernel_support== 1 && datatype->cuda_iov_dist != NULL && datatype->cuda_iov_dist != (void*)0xDEADBEEF) {
+        opal_cuda_iov_dist_fini(datatype->cuda_iov_dist);
+        datatype->cuda_iov_dist = NULL;
+        datatype->cuda_iov_count = 0;
+    } */
+#endif /* OPAL_CUDA_SUPPORT */
 }
 
 OBJ_CLASS_INSTANCE(opal_datatype_t, opal_object_t, opal_datatype_construct, opal_datatype_destruct);
