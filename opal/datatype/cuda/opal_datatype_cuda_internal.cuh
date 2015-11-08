@@ -60,8 +60,7 @@ typedef struct {
 typedef struct {
     size_t src_offset;
     size_t dst_offset;
-    uint32_t nb_elements;
-    uint8_t element_alignment;
+    uint32_t nb_bytes;
 } ddt_cuda_iov_dist_cached_t;
 
 typedef struct {

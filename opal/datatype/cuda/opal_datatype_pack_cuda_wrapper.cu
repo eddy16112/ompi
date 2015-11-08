@@ -664,7 +664,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConve
                                                         uint32_t* out_size,
                                                         size_t* max_data )
 {
-    return opal_ddt_generic_simple_pack_function_cuda_iov_non_cached(pConvertor, iov, out_size, max_data);   
+    return opal_ddt_generic_simple_pack_function_cuda_iov_cached(pConvertor, iov, out_size, max_data);   
 }
 
 int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_convertor_t* pConvertor,
@@ -1086,6 +1086,8 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
             } else {
                 alignment = ALIGNMENT_CHAR;
             }
+            
+            alignment = ALIGNMENT_DOUBLE;
 
             count_desc = length_per_iovec / alignment;
             residue_desc = length_per_iovec % alignment;
@@ -1094,17 +1096,16 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
             for (j = 0; j < nb_blocks_per_description; j++) {
                 cuda_iov_dist_h_current[nb_blocks_used].src_offset = source + j * thread_per_block * alignment - source_base;
                 cuda_iov_dist_h_current[nb_blocks_used].dst_offset = destination - destination_base;
-                cuda_iov_dist_h_current[nb_blocks_used].element_alignment = alignment;
                 if ( (j+1) * thread_per_block <= count_desc) {
-                    cuda_iov_dist_h_current[nb_blocks_used].nb_elements = thread_per_block;
+                    cuda_iov_dist_h_current[nb_blocks_used].nb_bytes = thread_per_block * alignment;
                 } else {
-                    cuda_iov_dist_h_current[nb_blocks_used].nb_elements = count_desc - j*thread_per_block; 
+                    cuda_iov_dist_h_current[nb_blocks_used].nb_bytes = (count_desc - j*thread_per_block) * alignment; 
                 }
 #if defined (OPAL_DATATYPE_CUDA_DEBUG)
-                assert(cuda_iov_dist_h_current[nb_blocks_used].nb_elements > 0);
+                assert(cuda_iov_dist_h_current[nb_blocks_used].nb_bytes > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
-                destination += cuda_iov_dist_h_current[nb_blocks_used].nb_elements * alignment;
-                DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, src %p, dst %p, nb_elements %d, alignment %d\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].src_offset, cuda_iov_dist_h_current[nb_blocks_used].dst_offset, cuda_iov_dist_h_current[nb_blocks_used].nb_elements, cuda_iov_dist_h_current[nb_blocks_used].element_alignment); );
+                destination += cuda_iov_dist_h_current[nb_blocks_used].nb_bytes;
+                DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, src_offset %ld, dst_offset %ld, nb_elements %d\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].src_offset, cuda_iov_dist_h_current[nb_blocks_used].dst_offset, cuda_iov_dist_h_current[nb_blocks_used].nb_bytes); );
                 nb_blocks_used ++;
                 assert (nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
             }
@@ -1115,13 +1116,12 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
                 orig_alignment = ALIGNMENT_CHAR;
                 cuda_iov_dist_h_current[nb_blocks_used].src_offset = source + length_per_iovec / alignment * alignment - source_base;
                 cuda_iov_dist_h_current[nb_blocks_used].dst_offset = destination - destination_base;
-                cuda_iov_dist_h_current[nb_blocks_used].element_alignment = orig_alignment;
-                cuda_iov_dist_h_current[nb_blocks_used].nb_elements = (length_per_iovec - length_per_iovec / alignment * alignment) / orig_alignment;
+                cuda_iov_dist_h_current[nb_blocks_used].nb_bytes = (length_per_iovec - length_per_iovec / alignment * alignment) / orig_alignment;
 #if defined (OPAL_DATATYPE_CUDA_DEBUG)
-                assert(cuda_iov_dist_h_current[nb_blocks_used].nb_elements > 0);
+                assert(cuda_iov_dist_h_current[nb_blocks_used].nb_bytes > 0);
 #endif /* OPAL_DATATYPE_CUDA_DEBUG */
-                destination += cuda_iov_dist_h_current[nb_blocks_used].nb_elements * orig_alignment;
-                DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, src %p, dst %p, nb_elements %d, alignment %d\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].src_offset, cuda_iov_dist_h_current[nb_blocks_used].dst_offset, cuda_iov_dist_h_current[nb_blocks_used].nb_elements, cuda_iov_dist_h_current[nb_blocks_used].element_alignment); );
+                destination += cuda_iov_dist_h_current[nb_blocks_used].nb_bytes;
+                DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, src_offset %ld, dst_offset %ld, nb_bytes %d\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].src_offset, cuda_iov_dist_h_current[nb_blocks_used].dst_offset, cuda_iov_dist_h_current[nb_blocks_used].nb_bytes); );
                 nb_blocks_used ++;
                 assert (nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
             }

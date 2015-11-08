@@ -1216,7 +1216,7 @@ int main( int argc, char* argv[] )
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 1; i <= 1; i++) {
-                local_copy_with_convertor(pdt, 1, 40000000, mat_size);
+                local_copy_with_convertor(pdt, 1, 4000001, mat_size);
             }
         }
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
