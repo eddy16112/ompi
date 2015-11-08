@@ -6,7 +6,47 @@
 #include <stdio.h> 
 
 
-__global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
+__global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used)
+{
+    uint32_t i, _copy_count;
+    unsigned char *src, *dst;
+    uint8_t alignment;
+    unsigned char *_source_tmp, *_destination_tmp;
+    
+    __shared__ uint32_t nb_tasks;
+    
+    if (threadIdx.x == 0) {
+        nb_tasks = nb_blocks_used / gridDim.x;
+        if (blockIdx.x < nb_blocks_used % gridDim.x) {
+            nb_tasks ++;
+        }
+    }
+    __syncthreads();
+    
+    for (i = 0; i < nb_tasks; i++) {
+        src = cuda_iov_dist[blockIdx.x + i * gridDim.x].src;
+        dst = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst;
+        _copy_count = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_elements;
+        alignment = cuda_iov_dist[blockIdx.x + i * gridDim.x].element_alignment;
+        
+        if (threadIdx.x < _copy_count) {
+            _source_tmp = src + threadIdx.x * alignment;
+            _destination_tmp = dst + threadIdx.x * alignment;
+#if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
+                if (alignment == ALIGNMENT_DOUBLE) {
+                    *((long *)_destination_tmp) = *((long *)_source_tmp);
+                } else if (alignment == ALIGNMENT_FLOAT) {
+                    *((int *)_destination_tmp) = *((int *)_source_tmp);
+                } else {
+                    * _destination_tmp = *_source_tmp;
+                }
+        //   printf("src %p, %1.f | dst %p, %1.f\n", _source_tmp, *_source_tmp, _destination_tmp, *_destination_tmp);
+#endif /* ! OPAL_DATATYPE_CUDA_DRY_RUN */
+        }
+    }
+}
+
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
 {
     uint32_t i, _copy_count;
     size_t src_offset, dst_offset;
@@ -45,6 +85,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t*
         }
     }
 }
+
 __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
                                                            size_t size,
                                                            OPAL_PTRDIFF_TYPE extent,

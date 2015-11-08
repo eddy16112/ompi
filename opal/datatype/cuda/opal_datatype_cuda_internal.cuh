@@ -51,15 +51,24 @@ typedef struct {
 } ddt_cuda_stream_t;
 
 typedef struct {
+    unsigned char* src;
+    unsigned char* dst;
+    uint32_t nb_elements;
+    uint8_t element_alignment;
+} ddt_cuda_iov_dist_non_cached_t;
+
+typedef struct {
     size_t src_offset;
     size_t dst_offset;
     uint32_t nb_elements;
     uint8_t element_alignment;
-} ddt_cuda_iov_dist_t;
+} ddt_cuda_iov_dist_cached_t;
 
 typedef struct {
-    ddt_cuda_iov_dist_t* cuda_iov_dist_h;
-    ddt_cuda_iov_dist_t* cuda_iov_dist_d;
+    ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist_non_cached_h;
+    ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist_non_cached_d;
+    ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
+    ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_d;
     cudaStream_t *cuda_stream;
     int32_t cuda_stream_id;
     cudaEvent_t cuda_event;
@@ -118,9 +127,13 @@ __global__ void unpack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
                                                            unsigned char* destination );
                                                            
 
-__global__ void opal_generic_simple_pack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
+__global__ void opal_generic_simple_pack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used);
 
-__global__ void opal_generic_simple_unpack_cuda_iov_kernel( ddt_cuda_iov_dist_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
+__global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used);
+
+__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
+
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
 
 void opal_cuda_output(int output_id, const char *format, ...);
 
