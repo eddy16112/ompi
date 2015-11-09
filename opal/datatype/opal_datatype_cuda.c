@@ -85,25 +85,10 @@ void mca_cuda_convertor_init(opal_convertor_t* convertor, const void *pUserBuf, 
         opal_cuda_kernel_support_fini();    
     }
 
-#if 0    
-    convertor->flags &= ~CONVERTOR_CUDA;  
-    if (opal_datatype_cuda_kernel_support == 1 && datatype->cuda_iov_is_cached == 0 && opal_convertor_need_buffers(convertor) == true) {
-        struct opal_datatype_t* datatype_tmp = (opal_datatype_t *)datatype;
-        datatype_tmp->cuda_iov_dist = opal_cuda_iov_dist_init();
-        if (datatype_tmp->cuda_iov_dist == (void*)0xDEADBEEF || datatype_tmp->cuda_iov_dist == NULL) {
-            /* either cuda iov cache is not enabled or cuda_iov_cache malloc is failed, then we do not cache cuda iov */
-            datatype_tmp->cuda_iov_is_cached = -1;
-        } else {
-            /* cuda iov buffer is ready , the value will be marked to 2 when caching is finished*/
-            datatype_tmp->cuda_iov_is_cached = 1;
-        }
-    }
-    convertor->flags |= CONVERTOR_CUDA;
-#endif
-    convertor->current_cuda_iov_count = 0;
+    convertor->current_cuda_iov_pos = 0;
     convertor->current_iov_pos = 0;
     convertor->current_iov_partial_length = 0;
-    
+    convertor->current_count = 0;
 }
 
 /* Checks the type of pointer
@@ -261,7 +246,6 @@ int32_t opal_cuda_kernel_support_init(void)
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_malloc_gpu_buffer );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_d2dcpy_async );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_d2dcpy );
-        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_iov_dist_init );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_iov_dist_fini );
         
         if (OPAL_SUCCESS != cuda_kernel_table.opal_ddt_cuda_kernel_init_p()) {
@@ -375,16 +359,6 @@ void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
         cuda_kernel_table.opal_ddt_cuda_d2dcpy_async_p(dst, src, count);
     } else {
         opal_output(0, "opal_ddt_cuda_d2dcpy_async function pointer is NULL\n");
-    }
-}
-
-void* opal_cuda_iov_dist_init(void)
-{
-    if (cuda_kernel_table.opal_ddt_cuda_iov_dist_init_p != NULL) {
-        return cuda_kernel_table.opal_ddt_cuda_iov_dist_init_p();
-    } else {
-        opal_output(0, "opal_ddt_cuda_iov_dist_init function pointer is NULL\n");
-        return NULL;
     }
 }
 

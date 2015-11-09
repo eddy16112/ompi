@@ -293,7 +293,7 @@ void* opal_ddt_cuda_iov_dist_init(void)
     }
 #else
     DT_CUDA_DEBUG( opal_cuda_output( 2, "cuda iov cache is not enabled.\n"); );
-    return (void *)0xDEADBEEF;
+    return NULL;
 #endif /* OPAL_DATATYPE_CUDA_IOV_CACHE */
 }
 
@@ -306,6 +306,19 @@ void opal_ddt_cuda_iov_dist_fini(void* cuda_iov_dist)
         DT_CUDA_DEBUG( opal_cuda_output( 2, "Free cuda_iov_dist for ddt is successed %p.\n", p); );
     }
 #endif /* OPAL_DATATYPE_CUDA_IOV_CACHE */
+}
+
+void opal_ddt_get_cached_cuda_iov(struct opal_convertor_t *convertor,
+                                  ddt_cuda_iov_dist_cached_t **cuda_iov_dist,
+                                  uint32_t* cuda_iov_count, uint8_t *cuda_iov_is_cached)
+{
+    opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
+    if (datatype->cached_cuda_iov_dist == NULL) {
+        datatype->cached_cuda_iov_dist = opal_ddt_cuda_iov_dist_init();
+        datatype->cached_cuda_iov_count = NUM_CUDA_IOV_PER_DDT;
+    }
+    *cuda_iov_dist = (ddt_cuda_iov_dist_cached_t *)datatype->cached_cuda_iov_dist;
+    *cuda_iov_count = datatype->cached_cuda_iov_count;                      
 }
 
 int32_t opal_ddt_cuda_is_gpu_buffer(const void *ptr)

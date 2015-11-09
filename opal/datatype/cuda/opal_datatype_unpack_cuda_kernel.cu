@@ -72,9 +72,9 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
             _source_tmp = source_base + src_offset;
             _destination_tmp = destination_base + dst_offset;
             uint32_t _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
-            if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_source_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes >= ALIGNMENT_DOUBLE) {
+            if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_source_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
                 alignment = ALIGNMENT_DOUBLE;
-            } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_source_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes >= ALIGNMENT_FLOAT) {
+            } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_source_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
                 alignment = ALIGNMENT_FLOAT;
             } else {
                 alignment = ALIGNMENT_CHAR;
@@ -90,6 +90,9 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
             if (j < copy_count) {
                 _source_tmp = source_base + src_offset + j * alignment;
                 _destination_tmp = destination_base + dst_offset + j * alignment;
+  /*              if (threadIdx.x == 0) {
+                    printf("_src %p, dst %p, alignment %d, blk %d, j %d, count %d\n", _source_tmp, _destination_tmp, alignment, blockIdx.x, j, copy_count);
+                }*/
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
                     if (alignment == ALIGNMENT_DOUBLE) {
                         *((long *)_destination_tmp) = *((long *)_source_tmp);

@@ -28,7 +28,6 @@ struct opal_datatype_cuda_kernel_function_table {
     void* (*opal_ddt_cuda_malloc_gpu_buffer_p)(size_t size, int gpu_id);
     void (*opal_ddt_cuda_d2dcpy_async_p)(void* dst, const void* src, size_t count);
     void (*opal_ddt_cuda_d2dcpy_p)(void* dst, const void* src, size_t count);
-    void* (*opal_ddt_cuda_iov_dist_init_p)(void);
     void (*opal_ddt_cuda_iov_dist_fini_p)(void *cuda_iov_dist);
     int32_t (*opal_ddt_generic_simple_pack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
     int32_t (*opal_ddt_generic_simple_unpack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );

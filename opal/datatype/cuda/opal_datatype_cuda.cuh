@@ -121,6 +121,10 @@ void opal_ddt_cuda_iov_dist_fini(void *cuda_iov_dist);
 
 void pack_iov_cached(opal_convertor_t* pConvertor, unsigned char *destination);
 
+void opal_ddt_get_cached_cuda_iov(struct opal_convertor_t *convertor,
+                                  ddt_cuda_iov_dist_cached_t **cuda_iov_dist,
+                                  uint32_t *cuda_iov_count, uint8_t *cuda_iov_is_cached);
+
 }
                             
 #endif  /* OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED */
