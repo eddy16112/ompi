@@ -38,7 +38,8 @@
 #define ALIGNMENT_DOUBLE    8
 #define ALIGNMENT_FLOAT     4
 #define ALIGNMENT_CHAR      1
-#define NUM_CUDA_IOV_PER_DDT    100000
+#define NUM_CUDA_IOV_PER_DDT    150000
+#define IOV_PIPELINE_SIZE   1000
 
 #define TIMER_DATA_TYPE struct timeval
 #define GET_TIME(TV)   gettimeofday( &(TV), NULL )

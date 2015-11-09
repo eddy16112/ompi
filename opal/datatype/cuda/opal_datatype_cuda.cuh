@@ -124,6 +124,10 @@ void pack_iov_cached(opal_convertor_t* pConvertor, unsigned char *destination);
 void opal_ddt_get_cached_cuda_iov(struct opal_convertor_t *convertor,
                                   ddt_cuda_iov_dist_cached_t **cuda_iov_dist,
                                   uint32_t *cuda_iov_count, uint8_t *cuda_iov_is_cached);
+                                  
+void opal_ddt_set_cuda_iov_is_cached(struct opal_convertor_t *convertor, uint32_t cuda_iov_count);
+
+void opal_ddt_check_cuda_iov_is_full(struct opal_convertor_t *convertor, uint32_t cuda_iov_count);
 
 }
                             
