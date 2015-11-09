@@ -1211,12 +1211,12 @@ int main( int argc, char* argv[] )
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
     int mat_size = 500;
-    for (mat_size = 2000; mat_size <= 2000; mat_size +=500) {
+    for (mat_size = 1000; mat_size <= 1000; mat_size +=500) {
         pdt = upper_matrix(mat_size);
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
             for (i = 1; i <= 1; i++) {
-                local_copy_with_convertor(pdt, 1, 4000001, mat_size);
+                local_copy_with_convertor(pdt, 1, 4000000, mat_size);
             }
         }
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
