@@ -28,8 +28,8 @@
 #include "limits.h"
 #include "opal/prefetch.h"
 #if OPAL_CUDA_SUPPORT
-//#include "opal/datatype/opal_convertor.h"
-//#include "opal/datatype/opal_datatype_cuda.h"
+#include "opal/datatype/opal_convertor.h"
+#include "opal/datatype/opal_datatype_cuda.h"
 #endif /* OPAL_CUDA_SUPPORT */ 
 
 static void opal_datatype_construct( opal_datatype_t* pData )
@@ -59,6 +59,12 @@ static void opal_datatype_construct( opal_datatype_t* pData )
 
     pData->cached_iovec       = NULL;
     pData->cached_iovec_count = 0;
+    
+#if OPAL_CUDA_SUPPORT
+    pData->cached_cuda_iov_dist = NULL;
+    pData->cached_cuda_iov_count = 0;
+    pData->cuda_iov_is_cached = 0;
+#endif /* OPAL_CUDA_SUPPORT */
 
     for( i = 0; i < OPAL_DATATYPE_MAX_SUPPORTED; i++ )
         pData->btypes[i]      = 0;
@@ -97,11 +103,12 @@ static void opal_datatype_destruct( opal_datatype_t* datatype )
     
 #if OPAL_CUDA_SUPPORT   
     /* free cuda iov */
-/*    if (opal_datatype_cuda_kernel_support== 1 && datatype->cuda_iov_dist != NULL && datatype->cuda_iov_dist != (void*)0xDEADBEEF) {
-        opal_cuda_iov_dist_fini(datatype->cuda_iov_dist);
-        datatype->cuda_iov_dist = NULL;
-        datatype->cuda_iov_count = 0;
-    } */
+    if (opal_datatype_cuda_kernel_support == 1 && datatype->cached_cuda_iov_dist != NULL) {
+        opal_cuda_iov_dist_fini(datatype->cached_cuda_iov_dist);
+        datatype->cached_cuda_iov_dist = NULL;
+        datatype->cached_cuda_iov_count = 0;
+        datatype->cuda_iov_is_cached = 0;
+    }
 #endif /* OPAL_CUDA_SUPPORT */
 }
 

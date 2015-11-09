@@ -652,7 +652,10 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
     const struct iovec *ddt_iov = NULL;
     uint32_t ddt_iov_count;
     size_t iov_len;
-    int iov_start_pos, iov_end_pos;
+    uint32_t iov_start_pos, iov_end_pos;
+    ddt_cuda_iov_dist_cached_t* cached_cuda_iov_dist_d;
+    uint32_t cached_cuda_iov_count;
+    uint8_t cuda_iov_is_cached;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end, start_total, end_total;
@@ -715,6 +718,8 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
     source_base = source;
     opal_convertor_raw_cached( pConvertor, &ddt_iov, &ddt_iov_count);
     assert(ddt_iov != NULL);
+    opal_ddt_get_cached_cuda_iov(pConvertor, &cached_cuda_iov_dist_d, &cached_cuda_iov_count, &cuda_iov_is_cached);
+    assert(cached_cuda_iov_dist_d != NULL);
     DT_CUDA_DEBUG ( opal_cuda_output(4, "Unpack iov count %d, submit to CUDA stream %d\n", ddt_iov_count, cuda_streams->current_stream_id); );
 
 #if defined (OPAL_DATATYPE_CUDA_TIMING)
@@ -768,15 +773,6 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
             buffer_size -= length_per_iovec;
             total_unpacked += length_per_iovec;
             destination = (size_t)(ddt_iov[i].iov_base) + (ddt_iov[i].iov_len - iov_len) + destination_base;
-
-            /* check alignment */
-            if ((uintptr_t)(destination) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)source % ALIGNMENT_DOUBLE == 0 && length_per_iovec >= ALIGNMENT_DOUBLE) {
-                alignment = ALIGNMENT_DOUBLE;
-            } else if ((uintptr_t)(destination) % ALIGNMENT_FLOAT == 0 && (uintptr_t)source % ALIGNMENT_FLOAT == 0 && length_per_iovec >= ALIGNMENT_FLOAT) {
-                alignment = ALIGNMENT_FLOAT;
-            } else {
-                alignment = ALIGNMENT_CHAR;
-            }
 
             alignment = ALIGNMENT_DOUBLE;
 
