@@ -1211,7 +1211,7 @@ int main( int argc, char* argv[] )
     
     printf( "\n\n#\n * TEST UPPER TRIANGULAR MATRIX (size 100)\n #\n\n" );
     int mat_size = 500;
-    for (mat_size = 1000; mat_size <= 1000; mat_size +=500) {
+    for (mat_size = 2000; mat_size <= 2000; mat_size +=500) {
         pdt = upper_matrix(mat_size);
         printf("----matrix size %d-----\n", mat_size);
         if( outputFlags & CHECK_PACK_UNPACK ) {
