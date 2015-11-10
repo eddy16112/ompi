@@ -61,9 +61,7 @@ static void opal_datatype_construct( opal_datatype_t* pData )
     pData->cached_iovec_count = 0;
     
 #if OPAL_CUDA_SUPPORT
-    pData->cached_cuda_iov_dist = NULL;
-    pData->cached_cuda_iov_count = 0;
-    pData->cuda_iov_is_cached = 0;
+    pData->cached_cuda_iov = NULL;
 #endif /* OPAL_CUDA_SUPPORT */
 
     for( i = 0; i < OPAL_DATATYPE_MAX_SUPPORTED; i++ )
@@ -103,11 +101,9 @@ static void opal_datatype_destruct( opal_datatype_t* datatype )
     
 #if OPAL_CUDA_SUPPORT   
     /* free cuda iov */
-    if (opal_datatype_cuda_kernel_support == 1 && datatype->cached_cuda_iov_dist != NULL) {
-        opal_cuda_iov_dist_fini(datatype->cached_cuda_iov_dist);
-        datatype->cached_cuda_iov_dist = NULL;
-        datatype->cached_cuda_iov_count = 0;
-        datatype->cuda_iov_is_cached = 0;
+    if (opal_datatype_cuda_kernel_support == 1 && datatype->cached_cuda_iov != NULL) {
+        opal_cached_cuda_iov_fini(datatype->cached_cuda_iov);
+        datatype->cached_cuda_iov = NULL;
     }
 #endif /* OPAL_CUDA_SUPPORT */
 }

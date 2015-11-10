@@ -46,10 +46,11 @@ __global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_
     }
 }
 
-__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base)
 {
     uint32_t i, j;
-    size_t src_offset, dst_offset;
+    size_t dst_offset;
+    unsigned char *src;
     unsigned char *_source_tmp, *_destination_tmp;
     
     __shared__ uint32_t nb_tasks;
@@ -65,11 +66,11 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
     __syncthreads();
     
     for (i = 0; i < nb_tasks; i++) {
-        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].src_offset;
-        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst_offset;
+        src = (unsigned char *)cuda_iov_contig_buf_d[blockIdx.x + i * gridDim.x];
+        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].ptr_offset;
         
         if (threadIdx.x == 0) {
-            _source_tmp = source_base + src_offset;
+            _source_tmp = src;
             _destination_tmp = destination_base + dst_offset;
             uint32_t _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
             if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_source_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
@@ -88,7 +89,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
                 if (copy_count > blockDim.x) printf("copy_count %d, dim %d\n", copy_count, blockDim.x);
             }*/
             if (j < copy_count) {
-                _source_tmp = source_base + src_offset + j * alignment;
+                _source_tmp = src + j * alignment;
                 _destination_tmp = destination_base + dst_offset + j * alignment;
   /*              if (threadIdx.x == 0) {
                     printf("_src %p, dst %p, alignment %d, blk %d, j %d, count %d\n", _source_tmp, _destination_tmp, alignment, blockIdx.x, j, copy_count);

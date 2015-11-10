@@ -246,7 +246,7 @@ int32_t opal_cuda_kernel_support_init(void)
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_malloc_gpu_buffer );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_d2dcpy_async );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_d2dcpy );
-        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_iov_dist_fini );
+        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cached_cuda_iov_fini );
         
         if (OPAL_SUCCESS != cuda_kernel_table.opal_ddt_cuda_kernel_init_p()) {
             return OPAL_ERROR;
@@ -272,6 +272,7 @@ int32_t opal_cuda_kernel_support_fini(void)
         cuda_kernel_table.opal_ddt_cuda_malloc_gpu_buffer_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_d2dcpy_async_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_d2dcpy_p = NULL;
+        cuda_kernel_table.opal_ddt_cached_cuda_iov_fini_p = NULL;
 
         dlclose(opal_datatype_cuda_kernel_handle);
         opal_datatype_cuda_kernel_handle = NULL;
@@ -362,12 +363,12 @@ void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count)
     }
 }
 
-void opal_cuda_iov_dist_fini(void *cuda_iov_dist)
+void opal_cached_cuda_iov_fini(void *cached_cuda_iov)
 {
-    if (cuda_kernel_table.opal_ddt_cuda_iov_dist_fini_p != NULL) {
-        cuda_kernel_table.opal_ddt_cuda_iov_dist_fini_p(cuda_iov_dist);
+    if (cuda_kernel_table.opal_ddt_cached_cuda_iov_fini_p != NULL) {
+        cuda_kernel_table.opal_ddt_cached_cuda_iov_fini_p(cached_cuda_iov);
     } else {
-        opal_output(0, "opal_ddt_cuda_iov_dist_fini function pointer is NULL\n");
+        opal_output(0, "opal_ddt_cached_cuda_iov_fini function pointer is NULL\n");
     }
 }
 
