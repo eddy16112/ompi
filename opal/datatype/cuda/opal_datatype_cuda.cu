@@ -340,6 +340,7 @@ void opal_ddt_set_cuda_iov_cached(struct opal_convertor_t *convertor, uint32_t c
     assert(datatype->cached_cuda_iov != NULL);
     ddt_cuda_iov_total_cached_t *tmp = (ddt_cuda_iov_total_cached_t *)datatype->cached_cuda_iov;
     tmp->cuda_iov_count = cuda_iov_count;
+    tmp->cuda_iov_is_cached = 1;
 }
 
 uint8_t opal_ddt_cuda_iov_is_cached(struct opal_convertor_t *convertor)
