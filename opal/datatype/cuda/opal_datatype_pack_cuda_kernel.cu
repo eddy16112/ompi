@@ -88,10 +88,11 @@ __global__ void opal_generic_simple_pack_cuda_iov_non_cached_kernel( ddt_cuda_io
     }
 }
 
-__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
+__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* source_base)
 {
     uint32_t i, j;
-    size_t src_offset, dst_offset;
+    size_t src_offset;
+    unsigned char *dst;
     unsigned char *_source_tmp, *_destination_tmp;
     
     __shared__ uint32_t nb_tasks;
@@ -108,12 +109,12 @@ __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_di
     __syncthreads();
     
     for (i = 0; i < nb_tasks; i++) {
-        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].src_offset;
-        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].dst_offset;
+        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].ptr_offset;
+        dst = (unsigned char *)cuda_iov_contig_buf_d[blockIdx.x + i * gridDim.x];
         
         if (threadIdx.x == 0) {
             _source_tmp = source_base + src_offset;
-            _destination_tmp = destination_base + dst_offset;
+            _destination_tmp = dst;
             uint32_t _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
             /* block size is either multiple of ALIGNMENT_DOUBLE or residule */
             if ((uintptr_t)(_source_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_destination_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
@@ -130,7 +131,7 @@ __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_di
         for (j = threadIdx.x; j < copy_count; j += blockDim.x) {
             if (j < copy_count) {
                 _source_tmp = source_base + src_offset + j * alignment;
-                _destination_tmp = destination_base + dst_offset + j * alignment;
+                _destination_tmp = dst + j * alignment;
 #if !defined (OPAL_DATATYPE_CUDA_DRY_RUN)
                 if (alignment == ALIGNMENT_DOUBLE) {
                     *((long *)_destination_tmp) = *((long *)_source_tmp);
