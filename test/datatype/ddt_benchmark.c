@@ -793,6 +793,8 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
     int32_t length = 0, done1 = 0, done2 = 0;
     TIMER_DATA_TYPE start, end, unpack_start, unpack_end;
     long total_time, unpack_time = 0;
+    int j, t_error = 0;
+    unsigned char *mat_char;
 
     dt_length = compute_buffer_length(pdt, count);
     printf("length %lu\n", dt_length);
@@ -890,7 +892,18 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
 
         if( done1 == 0 ) {
             done1 = opal_convertor_pack( send_convertor, &iov, &iov_count, &max_data );
+            
         }
+#if defined (TEST_CHAR)
+   /*     mat_char = (unsigned char *)ptemp;
+        for (j = 0; j < max_data; j++) {
+            if (mat_char[j] != 'a') {
+                t_error ++;
+                printf("error %d, %c\n", j, mat_char[j]);
+            }
+        }
+        printf("total error %d\n", t_error);*/
+#endif
 
         if( done2 == 0 ) {
             GET_TIME( unpack_start );
@@ -1306,13 +1319,13 @@ int main( int argc, char* argv[] )
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
     }
     
-    for (blk_len = 2000; blk_len <= 2000; blk_len += 500) {
+    for (blk_len = 51; blk_len <= 51; blk_len += 500) {
         printf( ">>--------------------------------------------<<\n" );
         printf( "Vector data-type (60000 times %d double stride 512)\n", blk_len );
         pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 0; i < 4; i++) {
-        //          vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
+            for (i = 0; i < 1; i++) {
+      //           vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
     //             vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
