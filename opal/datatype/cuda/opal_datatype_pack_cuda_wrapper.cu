@@ -955,14 +955,14 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     int iov_pipeline_block_id = 0;
     cudaStream_t *cuda_stream_iov = NULL;
     const struct iovec *ddt_iov = NULL;
-    uint32_t ddt_iov_count;
-    size_t iov_len;
+    uint32_t ddt_iov_count = 0;
+    size_t iov_len = 0;
     uint32_t iov_start_pos, iov_end_pos, cuda_iov_start_pos, cuda_iov_end_pos;
     ddt_cuda_iov_total_cached_t* cached_cuda_iov;
     ddt_cuda_iov_dist_cached_t* cached_cuda_iov_dist_d;
     uint32_t *cached_cuda_iov_nb_bytes_list_h, *cuda_iov_nb_bytes_list_h_current;
-    uint32_t cached_cuda_iov_count;
-    uint8_t cuda_iov_is_cached;
+    uint32_t cached_cuda_iov_count = 0;
+    uint8_t cuda_iov_is_cached = 0;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     TIMER_DATA_TYPE start, end, start_total, end_total;
@@ -1196,17 +1196,18 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
         GET_TIME(start);
 #endif
         for (i = cuda_iov_start_pos; i < cuda_iov_end_pos && !buffer_isfull; i++) {
-            packed_w_cache += cached_cuda_iov_nb_bytes_list_h[i];
-            if (packed_w_cache <= buffer_size) {
+            if (buffer_size >= cached_cuda_iov_nb_bytes_list_h[i]) {
                 cuda_iov_contig_buf_h_current[nb_blocks_used] = (uintptr_t)destination;
                 destination += cached_cuda_iov_nb_bytes_list_h[i];
-                nb_blocks_used ++;
+                packed_w_cache += cached_cuda_iov_nb_bytes_list_h[i];
+                buffer_size -= cached_cuda_iov_nb_bytes_list_h[i];
+                nb_blocks_used++;
             } else {
-                packed_w_cache -= cached_cuda_iov_nb_bytes_list_h[i];
                 buffer_isfull = 1;
                 break;
             }
         }
+        printf("nb_blocks_used %d, my %d\n", nb_blocks_used, i - cuda_iov_start_pos);
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
         GET_TIME( end );
         total_time = ELAPSED_TIME( start, end );
