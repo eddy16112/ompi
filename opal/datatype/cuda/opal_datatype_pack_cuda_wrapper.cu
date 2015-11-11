@@ -937,7 +937,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     uint32_t nb_blocks, thread_per_block, nb_blocks_used;
     size_t length, buffer_size, length_per_iovec;
     unsigned char *destination, *destination_base, *source_base, *source;
-    size_t total_packed, packed_w_cache ,packed_wo_cache;
+    size_t total_packed = 0, packed_w_cache = 0, packed_wo_cache = 0;
     int32_t complete_flag = 0;
     uint8_t buffer_isfull = 0, transfer_required, free_required;
     uint32_t convertor_flags;
@@ -1207,7 +1207,6 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
                 break;
             }
         }
-        printf("nb_blocks_used %d, my %d\n", nb_blocks_used, i - cuda_iov_start_pos);
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
         GET_TIME( end );
         total_time = ELAPSED_TIME( start, end );
