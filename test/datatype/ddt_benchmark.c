@@ -895,14 +895,14 @@ static int local_copy_with_convertor( ompi_datatype_t* pdt, int count, int chunk
             
         }
 #if defined (TEST_CHAR)
-        mat_char = (unsigned char *)ptemp;
+   /*     mat_char = (unsigned char *)ptemp;
         for (j = 0; j < max_data; j++) {
             if (mat_char[j] != 'a') {
                 t_error ++;
                 printf("error %d, %c\n", j, mat_char[j]);
             }
         }
-        printf("total error %d\n", t_error);
+        printf("total error %d\n", t_error);*/
 #endif
 
         if( done2 == 0 ) {
