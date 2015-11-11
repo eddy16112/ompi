@@ -46,7 +46,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_
     }
 }
 
-__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base)
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end)
 {
     uint32_t i, j;
     size_t dst_offset;
@@ -68,11 +68,21 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
     for (i = 0; i < nb_tasks; i++) {
         src = (unsigned char *)cuda_iov_contig_buf_d[blockIdx.x + i * gridDim.x];
         dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].ptr_offset;
-        
+        if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
+         //   if (threadIdx.x == 0) printf("cuda_iov_partial_length_start %d", cuda_iov_partial_length_start);
+            dst_offset = dst_offset + cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes - cuda_iov_partial_length_start; 
+        }
         if (threadIdx.x == 0) {
             _source_tmp = src;
             _destination_tmp = destination_base + dst_offset;
-            uint32_t _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
+            uint32_t _nb_bytes = 0;
+            if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
+                _nb_bytes = cuda_iov_partial_length_start;
+            } else if (i == nb_tasks-1 && (blockIdx.x == (nb_blocks_used-1) % gridDim.x) && cuda_iov_partial_length_end != 0) {
+                _nb_bytes = cuda_iov_partial_length_end;
+            } else {
+                _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
+            }
             if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_source_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
                 alignment = ALIGNMENT_DOUBLE;
             } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_source_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
