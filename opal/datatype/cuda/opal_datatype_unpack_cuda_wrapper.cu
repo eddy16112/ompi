@@ -885,6 +885,7 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
 #endif
         if (pConvertor->current_iov_partial_length > 0) {
             cuda_iov_partial_length_start = pConvertor->current_iov_partial_length;
+            unpacked_w_cache += cuda_iov_partial_length_start;
             buffer_size -= cuda_iov_partial_length_start;
             pConvertor->current_iov_partial_length = 0;
             cuda_iov_contig_buf_h_current[nb_blocks_used] = (uintptr_t)source;
