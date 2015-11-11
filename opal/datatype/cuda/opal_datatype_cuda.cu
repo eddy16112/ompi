@@ -351,6 +351,20 @@ uint8_t opal_ddt_cuda_iov_is_cached(struct opal_convertor_t *convertor)
     return tmp->cuda_iov_is_cached;
 }
 
+void opal_ddt_set_cuda_iov_position(struct opal_convertor_t *convertor, size_t ddt_offset, const uint32_t *cached_cuda_iov_nb_bytes_list_h, const uint32_t cuda_iov_count)
+{
+    int i;
+    size_t iov_size = 0;
+    for(i = 0; i < cuda_iov_count; i++) {
+        iov_size += cached_cuda_iov_nb_bytes_list_h[i];
+        if (iov_size > ddt_offset) {
+            convertor->current_iov_partial_length = iov_size - ddt_offset;
+            convertor->current_cuda_iov_pos = i;
+            break;
+        }
+    }
+}
+
 void opal_ddt_check_cuda_iov_is_full(struct opal_convertor_t *convertor, uint32_t cuda_iov_count)
 {
 #if 0
