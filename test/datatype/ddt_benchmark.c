@@ -1306,13 +1306,13 @@ int main( int argc, char* argv[] )
         OBJ_RELEASE( pdt ); assert( pdt == NULL );
     }
     
-    for (blk_len = 2000; blk_len <= 2000; blk_len += 500) {
+    for (blk_len = 20; blk_len <= 20; blk_len += 500) {
         printf( ">>--------------------------------------------<<\n" );
         printf( "Vector data-type (60000 times %d double stride 512)\n", blk_len );
         pdt = create_vector_type( MPI_DOUBLE, blk_len, blk_len, blk_len*2);
         if( outputFlags & CHECK_PACK_UNPACK ) {
-            for (i = 0; i < 4; i++) {
-        //          vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
+            for (i = 0; i < 1; i++) {
+     //             vector_ddt( pdt, 1, pdt, 1, 1024*1024*100 , blk_len, blk_len, blk_len*2);
     //             vector_ddt_2d( pdt, 1, pdt, 1, 1024*1024*100 , 8192, blk_len, blk_len+128);
             }
         }
