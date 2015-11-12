@@ -797,8 +797,6 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
         }
         
         cudaMemcpy(cached_cuda_iov_dist_d, cuda_iov_dist_h_current, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used), cudaMemcpyHostToDevice);
-        cuda_err = cudaEventRecord(cuda_iov_pipeline_block->cuda_event, *cuda_stream_iov);
-        opal_cuda_check_error(cuda_err);
         opal_ddt_set_cuda_iov_cached(pConvertor, nb_blocks_used);
         DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack cuda iov is cached, count %d\n", nb_blocks_used););
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
@@ -808,13 +806,8 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
 #endif
     }
     
-    for (i = 0; i < NB_STREAMS; i++) {
-        cudaStreamSynchronize(cuda_streams->opal_cuda_stream[i]);
-    }
-    
     cached_cuda_iov_count = cached_cuda_iov->cuda_iov_count;
-    
-#if 1    
+      
     /* now we use cached cuda iov */
     if( pConvertor->bConverted != pConvertor->local_size && !buffer_isfull) {
         opal_ddt_set_cuda_iov_position(pConvertor, pConvertor->bConverted, cached_cuda_iov_nb_bytes_list_h, cached_cuda_iov_count);
@@ -872,17 +865,12 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
                 } else {
                     pConvertor->current_cuda_iov_pos += nb_blocks_used;
                 } */
-        cuda_err = cudaStreamWaitEvent(*cuda_stream_iov, cuda_iov_pipeline_block->cuda_event, 0);
-        opal_cuda_check_error(cuda_err);
         cudaMemcpyAsync(cuda_iov_contig_buf_d_current, cuda_iov_contig_buf_h_current, sizeof(uintptr_t)*(nb_blocks_used), cudaMemcpyHostToDevice, *cuda_stream_iov);
         DT_CUDA_DEBUG ( opal_cuda_output(2, "kernel launched src_base %p, dst_base %p, nb_blocks %ld\n", source_base, destination_base, nb_blocks_used ); );
         opal_generic_simple_unpack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, *cuda_stream_iov>>>(cuda_iov_dist_d_current, cuda_iov_contig_buf_d_current, nb_blocks_used, destination_base, cuda_iov_partial_length_start, cuda_iov_partial_length_end);
-        cuda_err = cudaEventRecord(cuda_iov_pipeline_block->cuda_event, *cuda_stream_iov);
-        opal_cuda_check_error(cuda_err);
         iov_pipeline_block_id ++;
         iov_pipeline_block_id = iov_pipeline_block_id % NB_STREAMS;
     }
-#endif
 
     for (i = 0; i < NB_STREAMS; i++) {
         cudaStreamSynchronize(cuda_streams->opal_cuda_stream[i]);
