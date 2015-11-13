@@ -83,9 +83,9 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
         } else {
             _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].nb_bytes;
         }
-        if ((uintptr_t)(_destination_tmp) & 0x7 == 0 && (uintptr_t)src & 0x7 == 0 && _nb_bytes & 0x7 == 0) {
+        if ((uintptr_t)(_destination_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)src % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
             alignment = ALIGNMENT_DOUBLE;
-        } else if ((uintptr_t)(_destination_tmp) & 0x3 == 0 && (uintptr_t)src & 0x3 == 0 && _nb_bytes & 0x3 == 0) {
+        } else if ((uintptr_t)(_destination_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)src % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
             alignment = ALIGNMENT_FLOAT;
         } else {
             alignment = ALIGNMENT_CHAR;
