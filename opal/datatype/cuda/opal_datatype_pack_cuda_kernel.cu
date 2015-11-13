@@ -116,9 +116,9 @@ __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_di
         
         _source_tmp = source_base + src_offset;
         /* block size is either multiple of ALIGNMENT_DOUBLE or residule */
-        if ((uintptr_t)(_source_tmp) & 0x7 == 0 && (uintptr_t)dst & 0x7 == 0 && _nb_bytes & 0x7 == 0) {
+        if ((uintptr_t)(_source_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)dst % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
             alignment = ALIGNMENT_DOUBLE;
-        } else if ((uintptr_t)(_source_tmp) & 0x3 == 0 && (uintptr_t)dst & 0x3 == 0 && _nb_bytes & 0x3 == 0) {
+        } else if ((uintptr_t)(_source_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)dst % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
             alignment = ALIGNMENT_FLOAT;
         } else {
             alignment = ALIGNMENT_CHAR;
