@@ -50,12 +50,12 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
 {
     uint32_t i, j;
     size_t dst_offset, src_offset;
-    unsigned char *src;
     unsigned char *_source_tmp, *_destination_tmp;
-    size_t _nb_bytes;
+    uint32_t _nb_bytes;
     uint32_t current_cuda_iov_pos = cuda_iov_pos;
     size_t source_disp = cuda_iov_dist[current_cuda_iov_pos].contig_disp;
-    size_t source_partial_disp = (cuda_iov_dist[current_cuda_iov_pos+1].contig_disp - cuda_iov_dist[current_cuda_iov_pos].contig_disp) - cuda_iov_partial_length_start; 
+    size_t source_partial_disp = (cuda_iov_dist[current_cuda_iov_pos+1].contig_disp - cuda_iov_dist[current_cuda_iov_pos].contig_disp) - cuda_iov_partial_length_start;
+    size_t contig_disp; 
 
     __shared__ uint32_t nb_tasks;
     uint32_t copy_count;
@@ -70,12 +70,13 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
     __syncthreads();
     
     for (i = 0; i < nb_tasks; i++) {
-        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp - source_disp - source_partial_disp;
+        contig_disp = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp;  /* this variable is used multiple times, so put in in register */
+        src_offset = contig_disp - source_disp - source_partial_disp;
         dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].ncontig_disp;
-        _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos + 1].contig_disp - cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp;
+        _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos + 1].contig_disp - contig_disp;
 
         if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
-            src_offset = cuda_iov_dist[current_cuda_iov_pos].contig_disp - source_disp;
+            src_offset = contig_disp - source_disp;
             dst_offset = dst_offset + _nb_bytes - cuda_iov_partial_length_start;  
             _nb_bytes = cuda_iov_partial_length_start;
         } else if (i == nb_tasks-1 && (blockIdx.x == (nb_blocks_used-1) % gridDim.x) && cuda_iov_partial_length_end != 0) {
