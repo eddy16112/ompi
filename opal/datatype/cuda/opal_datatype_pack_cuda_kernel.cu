@@ -91,11 +91,12 @@ __global__ void opal_generic_simple_pack_cuda_iov_non_cached_kernel( ddt_cuda_io
 __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base)
 {
     uint32_t i, j;
-    size_t _nb_bytes;    
+    uint32_t _nb_bytes;    
     size_t src_offset, dst_offset;
     unsigned char *_source_tmp, *_destination_tmp;
     uint32_t current_cuda_iov_pos = cuda_iov_pos;
     size_t destination_disp = cuda_iov_dist[current_cuda_iov_pos].contig_disp;
+    size_t contig_disp;
     
     __shared__ uint32_t nb_tasks;
     uint32_t copy_count;
@@ -111,9 +112,10 @@ __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_di
     __syncthreads();
     
     for (i = 0; i < nb_tasks; i++) {
+        contig_disp = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp;  /* this variable is used multiple times, so put in in register */
         src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].ncontig_disp;
-        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp - destination_disp;
-        _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos + 1].contig_disp - cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp;
+        dst_offset = contig_disp - destination_disp;
+        _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos + 1].contig_disp - contig_disp;
         
         _source_tmp = source_base + src_offset;
         _destination_tmp = destination_base + dst_offset;
