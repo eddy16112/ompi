@@ -88,16 +88,17 @@ __global__ void opal_generic_simple_pack_cuda_iov_non_cached_kernel( ddt_cuda_io
     }
 }
 
-__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* source_base)
+__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* source_base)
 {
-    uint32_t i, j;
+    uint32_t i, j, _nb_bytes;    
     size_t src_offset;
     unsigned char *dst;
     unsigned char *_source_tmp, *_destination_tmp;
+    uint32_t current_cuda_iov_pos = cuda_iov_pos;
     
     __shared__ uint32_t nb_tasks;
-    __shared__ uint32_t copy_count;
-    __shared__ uint8_t alignment;
+    uint32_t copy_count;
+    uint8_t alignment;
     
     if (threadIdx.x == 0) {
         nb_tasks = nb_blocks_used / gridDim.x;
@@ -109,24 +110,20 @@ __global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_di
     __syncthreads();
     
     for (i = 0; i < nb_tasks; i++) {
-        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x].ptr_offset;
+        src_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].ptr_offset;
         dst = (unsigned char *)cuda_iov_contig_buf_d[blockIdx.x + i * gridDim.x];
+        _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].nb_bytes;
         
-        if (threadIdx.x == 0) {
-            _source_tmp = source_base + src_offset;
-            _destination_tmp = dst;
-            uint32_t _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x].nb_bytes;
-            /* block size is either multiple of ALIGNMENT_DOUBLE or residule */
-            if ((uintptr_t)(_source_tmp) % ALIGNMENT_DOUBLE == 0 && (uintptr_t)_destination_tmp % ALIGNMENT_DOUBLE == 0 && _nb_bytes % ALIGNMENT_DOUBLE == 0) {
-                alignment = ALIGNMENT_DOUBLE;
-            } else if ((uintptr_t)(_source_tmp) % ALIGNMENT_FLOAT == 0 && (uintptr_t)_destination_tmp % ALIGNMENT_FLOAT == 0 && _nb_bytes % ALIGNMENT_FLOAT == 0) {
-                alignment = ALIGNMENT_FLOAT;
-            } else {
-                alignment = ALIGNMENT_CHAR;
-            }
-            copy_count = _nb_bytes / alignment;
+        _source_tmp = source_base + src_offset;
+        /* block size is either multiple of ALIGNMENT_DOUBLE or residule */
+        if ((uintptr_t)(_source_tmp) & 0x7 == 0 && (uintptr_t)dst & 0x7 == 0 && _nb_bytes & 0x7 == 0) {
+            alignment = ALIGNMENT_DOUBLE;
+        } else if ((uintptr_t)(_source_tmp) & 0x3 == 0 && (uintptr_t)dst & 0x3 == 0 && _nb_bytes & 0x3 == 0) {
+            alignment = ALIGNMENT_FLOAT;
+        } else {
+            alignment = ALIGNMENT_CHAR;
         }
-        __syncthreads();
+        copy_count = _nb_bytes / alignment;
         
         for (j = threadIdx.x; j < copy_count; j += blockDim.x) {
             if (j < copy_count) {
