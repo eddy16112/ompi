@@ -59,8 +59,8 @@ typedef struct {
 } ddt_cuda_iov_dist_non_cached_t;
 
 typedef struct {
-    size_t ptr_offset;
-    uint32_t nb_bytes;
+    size_t ncontig_disp;
+    size_t contig_disp;
 } ddt_cuda_iov_dist_cached_t;
 
 typedef struct {
@@ -138,9 +138,9 @@ __global__ void opal_generic_simple_pack_cuda_iov_non_cached_kernel( ddt_cuda_io
 
 __global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist, int nb_blocks_used);
 
-__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* source_base);
+__global__ void opal_generic_simple_pack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* source_base, unsigned char* destination_base);
 
-__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end);
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base, unsigned char* source_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end);
 
 void opal_cuda_output(int output_id, const char *format, ...);
 
