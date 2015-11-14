@@ -54,7 +54,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
     uint32_t _nb_bytes;
     uint32_t current_cuda_iov_pos = cuda_iov_pos;
     size_t source_disp = cuda_iov_dist[current_cuda_iov_pos].contig_disp;
-    size_t source_partial_disp = (cuda_iov_dist[current_cuda_iov_pos+1].contig_disp - cuda_iov_dist[current_cuda_iov_pos].contig_disp) - cuda_iov_partial_length_start;
+    size_t source_partial_disp = 0;
     size_t contig_disp; 
 
     __shared__ uint32_t nb_tasks;
@@ -68,6 +68,10 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
         }
     }
     __syncthreads();
+    
+    if (cuda_iov_partial_length_start != 0) {
+        source_partial_disp = (cuda_iov_dist[current_cuda_iov_pos+1].contig_disp - cuda_iov_dist[current_cuda_iov_pos].contig_disp) - cuda_iov_partial_length_start;
+    }
     
     for (i = 0; i < nb_tasks; i++) {
         contig_disp = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp;  /* this variable is used multiple times, so put in in register */
