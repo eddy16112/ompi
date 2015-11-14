@@ -46,7 +46,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_non_cached_kernel( ddt_cuda_
     }
 }
 
-__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uintptr_t* cuda_iov_contig_buf_d, int nb_blocks_used, unsigned char* destination_base, unsigned char* source_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end)
+__global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_dist_cached_t* cuda_iov_dist, uint32_t cuda_iov_pos, uint32_t cuda_iov_count, uint32_t ddt_extent, uint32_t current_count, int nb_blocks_used, unsigned char* destination_base, unsigned char* source_base, size_t cuda_iov_partial_length_start, size_t cuda_iov_partial_length_end)
 {
     uint32_t i, j;
     size_t dst_offset, src_offset;
@@ -56,6 +56,9 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
     size_t source_disp = cuda_iov_dist[current_cuda_iov_pos].contig_disp;
     size_t source_partial_disp = 0;
     size_t contig_disp; 
+    uint32_t _my_cuda_iov_pos;
+    uint32_t _my_cuda_iov_iteration;
+    size_t ddt_size = cuda_iov_dist[cuda_iov_count].contig_disp;
 
     __shared__ uint32_t nb_tasks;
     uint32_t copy_count;
@@ -66,6 +69,7 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
         if (blockIdx.x < nb_blocks_used % gridDim.x) {
             nb_tasks ++;
         }
+     //   printf("cuda_iov_count %d, ddt_extent %d, current_count %d, ddt_size %d\n", cuda_iov_count, ddt_extent, current_count, ddt_size);
     }
     __syncthreads();
     
@@ -74,13 +78,17 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
     }
     
     for (i = 0; i < nb_tasks; i++) {
-        contig_disp = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].contig_disp;  /* this variable is used multiple times, so put in in register */
-        src_offset = contig_disp - source_disp - source_partial_disp;
-        dst_offset = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos].ncontig_disp;
-        _nb_bytes = cuda_iov_dist[blockIdx.x + i * gridDim.x + current_cuda_iov_pos + 1].contig_disp - contig_disp;
+        /* these 3 variables are used multiple times, so put in in register */
+        _my_cuda_iov_pos = (blockIdx.x + i * gridDim.x + current_cuda_iov_pos) % cuda_iov_count;
+        _my_cuda_iov_iteration = (blockIdx.x + i * gridDim.x + current_cuda_iov_pos) / cuda_iov_count;
+        contig_disp = cuda_iov_dist[_my_cuda_iov_pos].contig_disp; 
+        
+        src_offset = contig_disp + ddt_size * _my_cuda_iov_iteration - source_disp - source_partial_disp;
+        dst_offset = cuda_iov_dist[_my_cuda_iov_pos].ncontig_disp + (_my_cuda_iov_iteration + current_count) * ddt_extent;
+        _nb_bytes = cuda_iov_dist[_my_cuda_iov_pos + 1].contig_disp - contig_disp;
 
         if (i == 0 && blockIdx.x == 0 && cuda_iov_partial_length_start != 0) {
-            src_offset = contig_disp - source_disp;
+            src_offset = contig_disp + ddt_size * _my_cuda_iov_iteration - source_disp;
             dst_offset = dst_offset + _nb_bytes - cuda_iov_partial_length_start;  
             _nb_bytes = cuda_iov_partial_length_start;
         } else if (i == nb_tasks-1 && (blockIdx.x == (nb_blocks_used-1) % gridDim.x) && cuda_iov_partial_length_end != 0) {
@@ -97,7 +105,12 @@ __global__ void opal_generic_simple_unpack_cuda_iov_cached_kernel( ddt_cuda_iov_
             alignment = ALIGNMENT_CHAR;
         }
         copy_count = _nb_bytes / alignment;
-        
+   /*     
+        if (threadIdx.x == 0 && nb_tasks != 0) {
+            printf("unpack block %d, src_offset %ld, dst_offset %ld, count %d, nb_bytes %d, nb_tasks %d, i %d\n", blockIdx.x, src_offset, dst_offset, copy_count, _nb_bytes, nb_tasks, i);
+        }
+        __syncthreads();
+     */   
         for (j = threadIdx.x; j < copy_count; j += blockDim.x) {
 /*            if (threadIdx.x == 0) {
                 if (copy_count > blockDim.x) printf("copy_count %d, dim %d\n", copy_count, blockDim.x);
