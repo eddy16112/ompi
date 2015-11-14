@@ -355,11 +355,23 @@ void opal_ddt_set_cuda_iov_position(struct opal_convertor_t *convertor, size_t d
 {
     int i;
     size_t iov_size = 0;
+    size_t ddt_size;
+    convertor->current_iov_partial_length = 0;
+    convertor->current_cuda_iov_pos = 0;
+    if (ddt_offset == 0) {
+       return;
+    }
+    opal_datatype_type_size(convertor->pDesc, &ddt_size);
+    ddt_offset = ddt_offset % ddt_size;
     for(i = 0; i < cuda_iov_count; i++) {
         iov_size += cached_cuda_iov_nb_bytes_list_h[i];
         if (iov_size > ddt_offset) {
             convertor->current_iov_partial_length = iov_size - ddt_offset;
             convertor->current_cuda_iov_pos = i;
+            break;
+        } else if (iov_size == ddt_offset){
+            convertor->current_iov_partial_length = 0;
+            convertor->current_cuda_iov_pos = i+1;
             break;
         }
     }
