@@ -74,8 +74,6 @@ typedef struct {
     ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist_non_cached_h;
     ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist_non_cached_d;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
-    uintptr_t *cuda_iov_contig_buf_h;
-    uintptr_t *cuda_iov_contig_buf_d;
     cudaStream_t *cuda_stream;
     int32_t cuda_stream_id;
     cudaEvent_t cuda_event;
