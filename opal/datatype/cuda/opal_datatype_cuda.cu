@@ -223,8 +223,6 @@ int32_t opal_ddt_cuda_kernel_init(void)
             cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h)), sizeof(ddt_cuda_iov_dist_non_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
             cudaMalloc((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d)), sizeof(ddt_cuda_iov_dist_non_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
             cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_cached_h)), sizeof(ddt_cuda_iov_dist_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
-            cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_contig_buf_h)), sizeof(uintptr_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
-            cudaMalloc((void **)(&(cuda_iov_pipeline_block->cuda_iov_contig_buf_d)), sizeof(uintptr_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
             cuda_iov_pipeline_block->cuda_stream = &(cuda_streams->opal_cuda_stream[0]);
             cuda_iov_pipeline_block->cuda_stream_id = 0;
             cudaEventCreate(&(cuda_iov_pipeline_block->cuda_event), cudaEventDisableTiming);
@@ -264,8 +262,6 @@ int32_t opal_ddt_cuda_kernel_fini(void)
                 cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h);
                 cudaFree(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d);
                 cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_dist_cached_h);
-                cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_contig_buf_h);
-                cudaFree(cuda_iov_pipeline_block->cuda_iov_contig_buf_d);
                 cudaEventDestroy(cuda_iov_pipeline_block->cuda_event);
                 cuda_iov_pipeline_block->cuda_stream = NULL;
                 cuda_iov_pipeline_block->cuda_stream_id = -1;
