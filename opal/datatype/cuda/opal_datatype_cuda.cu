@@ -415,7 +415,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     }
     cudaMemcpyAsync(cached_cuda_iov_dist_d, cuda_iov_dist_h, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, *cuda_stream_iov);
     cached_cuda_iov->cuda_iov_dist_d = cached_cuda_iov_dist_d;
-    datatype->cached_cuda_iov = cached_cuda_iov;
+    datatype->cached_cuda_iov = (unsigned char*)cached_cuda_iov;
     *cuda_iov_count = nb_blocks_used;
     return OPAL_SUCCESS;
 }

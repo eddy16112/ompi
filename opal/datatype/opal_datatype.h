@@ -131,9 +131,6 @@ struct opal_datatype_t {
     int                iov_count;
     size_t             max_data;
     /* size: 416, cachelines: 7, members: 18 */
-#if OPAL_CUDA_SUPPORT
-    void *             cached_cuda_iov;
-#endif /* OPAL_CUDA_SUPPORT */
     /* last cacheline: 32 bytes */
 
     struct iovec*      cached_iovec;
