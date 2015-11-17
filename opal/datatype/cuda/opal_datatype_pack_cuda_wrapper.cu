@@ -1003,12 +1003,6 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start);
 #endif
-    
-    opal_ddt_get_cached_cuda_iov(pConvertor, &cached_cuda_iov);
-    cached_cuda_iov_dist_d = cached_cuda_iov->cuda_iov_dist_d;
-    assert(cached_cuda_iov_dist_d != NULL);
-    cached_cuda_iov_nb_bytes_list_h = cached_cuda_iov->nb_bytes_h;
-    assert(cached_cuda_iov_nb_bytes_list_h != NULL);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     GET_TIME( end );
@@ -1025,7 +1019,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
         GET_TIME(start);
 #endif
-        if (opal_ddt_cache_cuda_iov(pConvertor, cached_cuda_iov_dist_d, cached_cuda_iov_nb_bytes_list_h, &nb_blocks_used) == OPAL_SUCCESS) {
+        if (opal_ddt_cache_cuda_iov(pConvertor, &nb_blocks_used) == OPAL_SUCCESS) {
             opal_ddt_set_cuda_iov_cached(pConvertor, nb_blocks_used);
             DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack cuda iov is cached, count %d\n", nb_blocks_used););
         } else {
@@ -1040,6 +1034,12 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     }
     
     /* now we use cached cuda iov */
+    opal_ddt_get_cached_cuda_iov(pConvertor, &cached_cuda_iov);
+    cached_cuda_iov_dist_d = cached_cuda_iov->cuda_iov_dist_d;
+    assert(cached_cuda_iov_dist_d != NULL);
+    cached_cuda_iov_nb_bytes_list_h = cached_cuda_iov->nb_bytes_h;
+    assert(cached_cuda_iov_nb_bytes_list_h != NULL);
+    
     cached_cuda_iov_count = cached_cuda_iov->cuda_iov_count;
     cuda_iov_start_pos = pConvertor->current_cuda_iov_pos;
     cuda_iov_end_pos = cached_cuda_iov_count;
