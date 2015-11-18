@@ -225,6 +225,8 @@ int32_t opal_ddt_cuda_kernel_init(void)
             if (j == 0) {
             //    cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_cached_h)), sizeof(ddt_cuda_iov_dist_cached_t) * NUM_CUDA_IOV_PER_DDT);
                 cuda_iov_pipeline_block->cuda_iov_dist_cached_h = (ddt_cuda_iov_dist_cached_t *)malloc(sizeof(ddt_cuda_iov_dist_cached_t) * NUM_CUDA_IOV_PER_DDT);
+            } else {
+                cuda_iov_pipeline_block->cuda_iov_dist_cached_h = NULL;
             }
             cuda_iov_pipeline_block->cuda_stream = &(cuda_streams->opal_cuda_stream[0]);
             cuda_iov_pipeline_block->cuda_stream_id = 0;
@@ -262,10 +264,19 @@ int32_t opal_ddt_cuda_kernel_fini(void)
             cudaStreamDestroy(cuda_devices[i].cuda_streams->opal_cuda_stream[j]);
             cuda_iov_pipeline_block = cuda_devices[i].cuda_iov_pipeline_block[j];
             if (cuda_iov_pipeline_block != NULL) {
-                cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h);
-                cudaFree(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d);
-                //cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_dist_cached_h);
-                free(cuda_iov_pipeline_block->cuda_iov_dist_cached_h);
+                if (cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h != NULL) {
+                    cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h);
+                    cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h = NULL;
+                }
+                if (cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d != NULL) {
+                    cudaFree(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d);
+                    cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d = NULL;
+                }
+                if (cuda_iov_pipeline_block->cuda_iov_dist_cached_h != NULL) {
+                    //cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_dist_cached_h);
+                    free(cuda_iov_pipeline_block->cuda_iov_dist_cached_h);
+                    cuda_iov_pipeline_block->cuda_iov_dist_cached_h = NULL;
+                }
                 cudaEventDestroy(cuda_iov_pipeline_block->cuda_event);
                 cuda_iov_pipeline_block->cuda_stream = NULL;
                 cuda_iov_pipeline_block->cuda_stream_id = -1;
