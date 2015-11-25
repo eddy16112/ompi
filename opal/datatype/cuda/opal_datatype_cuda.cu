@@ -220,10 +220,9 @@ int32_t opal_ddt_cuda_kernel_init(void)
         for (j = 0; j < NB_STREAMS; j++) {
             cudaStreamCreate(&(cuda_streams->opal_cuda_stream[j]));
             cuda_iov_pipeline_block = (ddt_cuda_iov_pipeline_block_t *)malloc(sizeof(ddt_cuda_iov_pipeline_block_t));
-            cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h)), sizeof(ddt_cuda_iov_dist_non_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
-            cudaMalloc((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d)), sizeof(ddt_cuda_iov_dist_non_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
+            cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h)), sizeof(ddt_cuda_iov_dist_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
+            cudaMalloc((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d)), sizeof(ddt_cuda_iov_dist_cached_t) * CUDA_MAX_NB_BLOCKS * CUDA_IOV_MAX_TASK_PER_BLOCK);
             if (j == 0) {
-            //    cudaMallocHost((void **)(&(cuda_iov_pipeline_block->cuda_iov_dist_cached_h)), sizeof(ddt_cuda_iov_dist_cached_t) * NUM_CUDA_IOV_PER_DDT);
                 cuda_iov_pipeline_block->cuda_iov_dist_cached_h = (ddt_cuda_iov_dist_cached_t *)malloc(sizeof(ddt_cuda_iov_dist_cached_t) * NUM_CUDA_IOV_PER_DDT);
             } else {
                 cuda_iov_pipeline_block->cuda_iov_dist_cached_h = NULL;
@@ -273,7 +272,6 @@ int32_t opal_ddt_cuda_kernel_fini(void)
                     cuda_iov_pipeline_block->cuda_iov_dist_non_cached_d = NULL;
                 }
                 if (cuda_iov_pipeline_block->cuda_iov_dist_cached_h != NULL) {
-                    //cudaFreeHost(cuda_iov_pipeline_block->cuda_iov_dist_cached_h);
                     free(cuda_iov_pipeline_block->cuda_iov_dist_cached_h);
                     cuda_iov_pipeline_block->cuda_iov_dist_cached_h = NULL;
                 }
