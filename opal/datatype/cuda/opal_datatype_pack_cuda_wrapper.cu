@@ -937,14 +937,12 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
                                                                    uint32_t* out_size,
                                                                    size_t* max_data )
 {
-    uint32_t i, j;
-    uint32_t count_desc, nb_blocks_per_description, residue_desc;
+    uint32_t i;
     uint32_t nb_blocks, thread_per_block, nb_blocks_used;
-    size_t buffer_size, length_per_iovec;
+    size_t buffer_size;
     unsigned char *destination, *destination_base, *source_base;
     size_t total_packed;
     uint8_t buffer_isfull = 0, transfer_required, free_required;
-    uint8_t alignment;
     cudaError_t cuda_err;
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current;
@@ -954,10 +952,8 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
     cudaStream_t *cuda_stream_iov = NULL;
     const struct iovec *ddt_iov = NULL;
     uint32_t ddt_iov_count = 0;
-    size_t current_cuda_iov_length = 0;
-    size_t ncontig_disp_base;
     size_t contig_disp = 0;
-    uint32_t ddt_iov_start_pos, ddt_iov_end_pos;
+    uint32_t ddt_iov_start_pos, ddt_iov_end_pos, current_ddt_iov_pos;
     OPAL_PTRDIFF_TYPE ddt_extent;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
@@ -1044,62 +1040,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
         GET_TIME(start);
 #endif
 
-        for (i = ddt_iov_start_pos; i < ddt_iov_end_pos && !buffer_isfull; i++) {
-            if (pConvertor->current_iov_partial_length > 0) {
-                ncontig_disp_base = (size_t)(ddt_iov[i].iov_base) + ddt_iov[i].iov_len - pConvertor->current_iov_partial_length;
-                length_per_iovec = pConvertor->current_iov_partial_length;
-                pConvertor->current_iov_partial_length = 0;
-            } else {
-                ncontig_disp_base = (size_t)(ddt_iov[i].iov_base);
-                length_per_iovec = ddt_iov[i].iov_len;
-            }
-            if (buffer_size < length_per_iovec) {
-                pConvertor->current_iov_pos = i;
-                pConvertor->current_iov_partial_length = length_per_iovec - buffer_size;
-                length_per_iovec = buffer_size; 
-                buffer_isfull = 1;
-            }
-            buffer_size -= length_per_iovec;
-            total_packed += length_per_iovec;
-            
-            alignment = ALIGNMENT_DOUBLE;
-
-            count_desc = length_per_iovec / alignment;
-            residue_desc = length_per_iovec % alignment;
-            nb_blocks_per_description = (count_desc + thread_per_block - 1) / thread_per_block;
-            DT_CUDA_DEBUG ( opal_cuda_output(10, "Pack description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
-            for (j = 0; j < nb_blocks_per_description; j++) {
-                cuda_iov_dist_h_current[nb_blocks_used].ncontig_disp = ncontig_disp_base + j * thread_per_block * alignment;
-                cuda_iov_dist_h_current[nb_blocks_used].contig_disp = contig_disp;
-                if ( (j+1) * thread_per_block <= count_desc) {
-                    current_cuda_iov_length = thread_per_block * alignment;
-                } else {
-                    current_cuda_iov_length = (count_desc - j*thread_per_block) * alignment; 
-                }
-#if defined (OPAL_DATATYPE_CUDA_DEBUG)
-                assert(current_cuda_iov_length > 0);
-#endif /* OPAL_DATATYPE_CUDA_DEBUG */
-                contig_disp += current_cuda_iov_length;
-                DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[nb_blocks_used].contig_disp, current_cuda_iov_length); );
-                nb_blocks_used ++;
-                assert (nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
-            }
-            
-            /* handle residue */
-            if (residue_desc != 0) {
-                cuda_iov_dist_h_current[nb_blocks_used].ncontig_disp = ncontig_disp_base + length_per_iovec / alignment * alignment;
-                cuda_iov_dist_h_current[nb_blocks_used].contig_disp = contig_disp;
-                current_cuda_iov_length= length_per_iovec - length_per_iovec / alignment * alignment;
-#if defined (OPAL_DATATYPE_CUDA_DEBUG)
-                assert(current_cuda_iov_length > 0);
-#endif /* OPAL_DATATYPE_CUDA_DEBUG */
-                contig_disp += current_cuda_iov_length;
-                DT_CUDA_DEBUG( opal_cuda_output(12, "Pack \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h_current[nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[nb_blocks_used].contig_disp, current_cuda_iov_length); );
-                nb_blocks_used ++;
-                assert (nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
-            }
-        }
-        cuda_iov_dist_h_current[nb_blocks_used].contig_disp = contig_disp;
+        buffer_isfull = opal_ddt_iov_to_cuda_iov(pConvertor, ddt_iov, cuda_iov_dist_h_current, ddt_iov_start_pos, ddt_iov_end_pos, &buffer_size, &nb_blocks_used, &total_packed, &contig_disp, &current_ddt_iov_pos);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
         GET_TIME( end );
@@ -1114,10 +1055,10 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
         iov_pipeline_block_id ++;
         iov_pipeline_block_id = iov_pipeline_block_id % NB_STREAMS;
         destination_base += contig_disp;
-        contig_disp = 0;
+        
         if (!buffer_isfull) {
-            pConvertor->current_iov_pos = i;
-            if (i == ddt_iov_count) {
+            pConvertor->current_iov_pos = current_ddt_iov_pos;
+            if (current_ddt_iov_pos == ddt_iov_count) {
                 pConvertor->current_count ++;
                 pConvertor->current_iov_pos = 0;
                 source_base += ddt_extent;
