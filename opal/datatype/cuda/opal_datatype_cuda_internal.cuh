@@ -71,8 +71,8 @@ typedef struct {
 } ddt_cuda_iov_total_cached_t;
 
 typedef struct {
-    ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist_non_cached_h;
-    ddt_cuda_iov_dist_non_cached_t* cuda_iov_dist_non_cached_d;
+    ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_h;
+    ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_d;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
     cudaStream_t *cuda_stream;
     int32_t cuda_stream_id;
@@ -109,6 +109,7 @@ extern ddt_cuda_device_t *cuda_devices;
 extern ddt_cuda_device_t *current_cuda_device;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
+extern uint32_t cuda_iov_cache_enabled;
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
