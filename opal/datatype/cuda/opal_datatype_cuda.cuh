@@ -135,6 +135,8 @@ void opal_ddt_set_ddt_iov_position(struct opal_convertor_t *convertor, size_t dd
 
 int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov_count);
 
+uint8_t opal_ddt_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iovec *ddt_iov, ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current, uint32_t ddt_iov_start_pos, uint32_t ddt_iov_end_pos, size_t *buffer_size, uint32_t *nb_blocks_used, size_t *total_packed, size_t *contig_disp_out, uint32_t *current_ddt_iov_pos);
+
 }
                             
 #endif  /* OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED */

@@ -454,6 +454,82 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     return OPAL_SUCCESS;
 }
 
+uint8_t opal_ddt_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iovec *ddt_iov, ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current, uint32_t ddt_iov_start_pos, uint32_t ddt_iov_end_pos, size_t *buffer_size, uint32_t *nb_blocks_used, size_t *total_converted, size_t *contig_disp_out, uint32_t *current_ddt_iov_pos)
+{
+    size_t ncontig_disp_base;
+    size_t contig_disp = 0;
+    size_t current_cuda_iov_length = 0;
+    uint8_t buffer_isfull = 0;
+    uint8_t alignment;
+    uint32_t count_desc, nb_blocks_per_description, residue_desc;
+    uint32_t thread_per_block;
+    size_t length_per_iovec;
+    uint32_t i, j;
+    
+    thread_per_block = CUDA_WARP_SIZE * 5;
+    
+    for (i = ddt_iov_start_pos; i < ddt_iov_end_pos && !buffer_isfull; i++) {
+        if (pConvertor->current_iov_partial_length > 0) {
+            ncontig_disp_base = (size_t)(ddt_iov[i].iov_base) + ddt_iov[i].iov_len - pConvertor->current_iov_partial_length;
+            length_per_iovec = pConvertor->current_iov_partial_length;
+            pConvertor->current_iov_partial_length = 0;
+        } else {
+            ncontig_disp_base = (size_t)(ddt_iov[i].iov_base);
+            length_per_iovec = ddt_iov[i].iov_len;
+        }
+        if (*buffer_size < length_per_iovec) {
+            pConvertor->current_iov_pos = i;
+            pConvertor->current_iov_partial_length = length_per_iovec - *buffer_size;
+            length_per_iovec = *buffer_size; 
+            buffer_isfull = 1;
+        }
+        *buffer_size -= length_per_iovec;
+        *total_converted += length_per_iovec;
+        
+        alignment = ALIGNMENT_DOUBLE;
+
+        count_desc = length_per_iovec / alignment;
+        residue_desc = length_per_iovec % alignment;
+        nb_blocks_per_description = (count_desc + thread_per_block - 1) / thread_per_block;
+        DT_CUDA_DEBUG ( opal_cuda_output(10, "DDT IOV to CUDA IOV description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
+        for (j = 0; j < nb_blocks_per_description; j++) {
+            cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp = ncontig_disp_base + j * thread_per_block * alignment;
+            cuda_iov_dist_h_current[*nb_blocks_used].contig_disp = contig_disp;
+            if ( (j+1) * thread_per_block <= count_desc) {
+                current_cuda_iov_length = thread_per_block * alignment;
+            } else {
+                current_cuda_iov_length = (count_desc - j*thread_per_block) * alignment; 
+            }
+#if defined (OPAL_DATATYPE_CUDA_DEBUG)
+            assert(current_cuda_iov_length > 0);
+#endif /* OPAL_DATATYPE_CUDA_DEBUG */
+            contig_disp += current_cuda_iov_length;
+            DT_CUDA_DEBUG( opal_cuda_output(12, "DDT IOV to CUDA IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[*nb_blocks_used].contig_disp, current_cuda_iov_length); );
+            (*nb_blocks_used) ++;
+            assert (*nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
+        }
+        
+        /* handle residue */
+        if (residue_desc != 0) {
+            cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp = ncontig_disp_base + length_per_iovec / alignment * alignment;
+            cuda_iov_dist_h_current[*nb_blocks_used].contig_disp = contig_disp;
+            current_cuda_iov_length= length_per_iovec - length_per_iovec / alignment * alignment;
+#if defined (OPAL_DATATYPE_CUDA_DEBUG)
+            assert(current_cuda_iov_length > 0);
+#endif /* OPAL_DATATYPE_CUDA_DEBUG */
+            contig_disp += current_cuda_iov_length;
+            DT_CUDA_DEBUG( opal_cuda_output(12, "DDT IOV to CUDA IOV \tblock %d, ncontig_disp %ld, contig_disp %ld, nb_bytes %ld\n", nb_blocks_used, cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp, cuda_iov_dist_h_current[*nb_blocks_used].contig_disp, current_cuda_iov_length); );
+            (*nb_blocks_used) ++;
+            assert (*nb_blocks_used < CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK);
+        }
+    }
+    cuda_iov_dist_h_current[*nb_blocks_used].contig_disp = contig_disp;
+    *contig_disp_out = contig_disp;
+    *current_ddt_iov_pos = i;
+    return buffer_isfull;
+        
+}
+
 void opal_ddt_get_cached_cuda_iov(struct opal_convertor_t *convertor, ddt_cuda_iov_total_cached_t **cached_cuda_iov)
 {
     opal_datatype_t *datatype = (opal_datatype_t *)convertor->pDesc;
