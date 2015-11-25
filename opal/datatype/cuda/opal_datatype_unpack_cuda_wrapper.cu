@@ -708,6 +708,7 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_non_cached( opal_conver
     source_base = source;
     opal_datatype_type_extent(pConvertor->pDesc, &ddt_extent);
     destination_base = (unsigned char*)pConvertor->pBaseBuf + pConvertor->current_count * ddt_extent;
+    opal_ddt_set_ddt_iov_position(pConvertor, pConvertor->bConverted, ddt_iov, ddt_iov_count);
     
     for (i = 0; i < NB_STREAMS; i++) {
         cudaStreamSynchronize(cuda_streams->opal_cuda_stream[i]);
@@ -818,6 +819,7 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_non_cached( opal_conver
         cudaStreamSynchronize(cuda_streams->opal_cuda_stream[i]);
     }
 
+    pConvertor->bConverted += total_unpacked;
     iov[0].iov_len = total_unpacked;
     *max_data = total_unpacked;
     *out_size = 1;
