@@ -15,6 +15,7 @@ ddt_cuda_device_t *cuda_devices;
 ddt_cuda_device_t *current_cuda_device;
 struct iovec cuda_iov[CUDA_NB_IOV];
 uint32_t cuda_iov_count;
+uint32_t cuda_iov_cache_enabled;
 
 //uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
@@ -239,6 +240,7 @@ int32_t opal_ddt_cuda_kernel_init(void)
     current_cuda_device = &(cuda_devices[0]);
     
     /* init cuda_iov */
+    cuda_iov_cache_enabled = 1;
     cuda_iov_count = CUDA_NB_IOV;
     
     // /* init size for double, float, char */

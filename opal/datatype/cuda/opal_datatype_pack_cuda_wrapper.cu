@@ -664,7 +664,98 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConve
                                                         uint32_t* out_size,
                                                         size_t* max_data )
 {
-    return opal_ddt_generic_simple_pack_function_cuda_iov_non_cached(pConvertor, iov, out_size, max_data);   
+    size_t buffer_size;
+    unsigned char *destination;
+    size_t total_packed;
+    uint8_t transfer_required, free_required;
+
+#if defined(OPAL_DATATYPE_CUDA_TIMING)    
+    TIMER_DATA_TYPE start, end, start_total, end_total;
+    long total_time, move_time;
+#endif
+
+ //   printf("buffer size %d, max_data %d\n", iov[0].iov_len, *max_data);
+    if ((iov[0].iov_base == NULL) || opal_ddt_cuda_is_gpu_buffer(iov[0].iov_base)) {
+        if (iov[0].iov_len == 0) {
+            buffer_size = DT_CUDA_BUFFER_SIZE;
+        } else {
+            buffer_size = iov[0].iov_len;
+        }
+        
+        if (iov[0].iov_base == NULL) {
+            iov[0].iov_base = (unsigned char *)opal_ddt_cuda_malloc_gpu_buffer(buffer_size, 0);
+            destination = (unsigned char *)iov[0].iov_base;
+            pConvertor->gpu_buffer_ptr = destination;
+            free_required = 1;
+        } else {
+            destination = (unsigned char *)iov[0].iov_base;
+            free_required = 0;
+        }
+        transfer_required = 0;
+    } else {
+        buffer_size = iov[0].iov_len;
+        if (OPAL_DATATYPE_VECTOR_USE_ZEROCPY) {
+            pConvertor->gpu_buffer_ptr = NULL;
+            transfer_required = 0;
+            free_required = 0;
+            cudaHostGetDevicePointer((void **)&destination, (void *)iov[0].iov_base, 0);
+        } else {
+            if (pConvertor->gpu_buffer_ptr == NULL) {
+                pConvertor->gpu_buffer_ptr = (unsigned char*)opal_ddt_cuda_malloc_gpu_buffer(buffer_size, 0);
+            }
+            transfer_required = 1;
+            free_required = 1;
+            destination = pConvertor->gpu_buffer_ptr;
+        }
+    }   
+
+    total_packed = 0;
+    
+#if defined(OPAL_DATATYPE_CUDA_TIMING)
+    GET_TIME(start_total);
+#endif
+    
+    /* start pack */
+    if (cuda_iov_cache_enabled) {
+        opal_ddt_generic_simple_pack_function_cuda_iov_cached(pConvertor, destination, buffer_size, &total_packed);
+    } else {
+        opal_ddt_generic_simple_pack_function_cuda_iov_non_cached(pConvertor, destination, buffer_size, &total_packed);
+    }
+
+    pConvertor->bConverted += total_packed;
+    DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack total packed %d\n", total_packed); );
+    
+#if defined(OPAL_DATATYPE_CUDA_TIMING)
+    GET_TIME(start);
+#endif
+    if (transfer_required) {
+        cudaMemcpy(iov[0].iov_base, pConvertor->gpu_buffer_ptr, total_packed, cudaMemcpyDeviceToHost);
+    } 
+#if defined(OPAL_DATATYPE_CUDA_TIMING) 
+    GET_TIME( end );
+    move_time = ELAPSED_TIME( start, end );
+    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: DtoH memcpy in %ld microsec, transfer required %d\n", move_time, transfer_required ); );
+#endif
+
+    iov[0].iov_len = total_packed;
+    *max_data = total_packed;
+    *out_size = 1;
+    
+#if defined(OPAL_DATATYPE_CUDA_TIMING)    
+    GET_TIME( end_total );
+    total_time = ELAPSED_TIME( start_total, end_total );
+    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: total packing in %ld microsec, kernel %ld microsec\n", total_time, total_time-move_time ); );
+#endif
+    
+    if( pConvertor->bConverted == pConvertor->local_size ) {
+        pConvertor->flags |= CONVERTOR_COMPLETED;
+        if (pConvertor->gpu_buffer_ptr != NULL && free_required) {
+           opal_ddt_cuda_free_gpu_buffer(pConvertor->gpu_buffer_ptr, 0);
+           pConvertor->gpu_buffer_ptr = NULL;
+        }
+        return 1;
+    }        
+    return 0; 
 }
 
 #if 0
@@ -932,17 +1023,12 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
 #endif
 
 
-int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_convertor_t* pConvertor,
-                                                                   struct iovec* iov,
-                                                                   uint32_t* out_size,
-                                                                   size_t* max_data )
+int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_convertor_t* pConvertor, unsigned char *destination, size_t buffer_size, size_t *total_packed)
 {
     uint32_t i;
     uint32_t nb_blocks, thread_per_block, nb_blocks_used;
-    size_t buffer_size;
-    unsigned char *destination, *destination_base, *source_base;
-    size_t total_packed;
-    uint8_t buffer_isfull = 0, transfer_required, free_required;
+    unsigned char *destination_base, *source_base;
+    uint8_t buffer_isfull = 0;
     cudaError_t cuda_err;
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_h_current;
@@ -957,51 +1043,11 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
     OPAL_PTRDIFF_TYPE ddt_extent;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
-    TIMER_DATA_TYPE start, end, start_total, end_total;
-    long total_time, move_time;
+    TIMER_DATA_TYPE start, end;
+    long total_time;
 #endif
-    
-
- //   printf("buffer size %d, max_data %d\n", iov[0].iov_len, *max_data);
-    if ((iov[0].iov_base == NULL) || opal_ddt_cuda_is_gpu_buffer(iov[0].iov_base)) {
-        if (iov[0].iov_len == 0) {
-            buffer_size = DT_CUDA_BUFFER_SIZE;
-        } else {
-            buffer_size = iov[0].iov_len;
-        }
-        
-        if (iov[0].iov_base == NULL) {
-            iov[0].iov_base = (unsigned char *)opal_ddt_cuda_malloc_gpu_buffer(buffer_size, 0);
-            destination = (unsigned char *)iov[0].iov_base;
-            pConvertor->gpu_buffer_ptr = destination;
-            free_required = 1;
-        } else {
-            destination = (unsigned char *)iov[0].iov_base;
-            free_required = 0;
-        }
-        transfer_required = 0;
-    } else {
-        buffer_size = iov[0].iov_len;
-        if (OPAL_DATATYPE_VECTOR_USE_ZEROCPY) {
-            pConvertor->gpu_buffer_ptr = NULL;
-            transfer_required = 0;
-            free_required = 0;
-            cudaHostGetDevicePointer((void **)&destination, (void *)iov[0].iov_base, 0);
-        } else {
-            if (pConvertor->gpu_buffer_ptr == NULL) {
-                pConvertor->gpu_buffer_ptr = (unsigned char*)opal_ddt_cuda_malloc_gpu_buffer(buffer_size, 0);
-            }
-            transfer_required = 1;
-            free_required = 1;
-            destination = pConvertor->gpu_buffer_ptr;
-        }
-    }   
     
     DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack using IOV non cached, GPU base %p, pack to buffer %p\n", pConvertor->pBaseBuf, destination););
-
-#if defined(OPAL_DATATYPE_CUDA_TIMING)
-    GET_TIME(start_total);
-#endif
     
     opal_convertor_raw_cached( pConvertor, &ddt_iov, &ddt_iov_count);
     if (ddt_iov == NULL) {
@@ -1009,7 +1055,6 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
         return OPAL_ERROR;
     }
     
-    total_packed = 0;
     cuda_streams->current_stream_id = 0;
     thread_per_block = CUDA_WARP_SIZE * 5;
     nb_blocks = 256;
@@ -1040,7 +1085,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
         GET_TIME(start);
 #endif
 
-        buffer_isfull = opal_ddt_iov_to_cuda_iov(pConvertor, ddt_iov, cuda_iov_dist_h_current, ddt_iov_start_pos, ddt_iov_end_pos, &buffer_size, &nb_blocks_used, &total_packed, &contig_disp, &current_ddt_iov_pos);
+        buffer_isfull = opal_ddt_iov_to_cuda_iov(pConvertor, ddt_iov, cuda_iov_dist_h_current, ddt_iov_start_pos, ddt_iov_end_pos, &buffer_size, &nb_blocks_used, total_packed, &contig_disp, &current_ddt_iov_pos);
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
         GET_TIME( end );
@@ -1067,57 +1112,19 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_non_cached( opal_converto
         
     }
     
-
     for (i = 0; i < NB_STREAMS; i++) {
         cudaStreamSynchronize(cuda_streams->opal_cuda_stream[i]);
     }
-    
-#if defined(OPAL_DATATYPE_CUDA_TIMING)
-    GET_TIME(start);
-#endif
-    if (transfer_required) {
-        cudaMemcpy(iov[0].iov_base, pConvertor->gpu_buffer_ptr, total_packed, cudaMemcpyDeviceToHost);
-    } 
-#if defined(OPAL_DATATYPE_CUDA_TIMING) 
-    GET_TIME( end );
-    move_time = ELAPSED_TIME( start, end );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: DtoH memcpy in %ld microsec, transfer required %d\n", move_time, transfer_required ); );
-#endif
-
-    pConvertor->bConverted += total_packed;
-    iov[0].iov_len = total_packed;
-    *max_data = total_packed;
-    *out_size = 1;
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack total packed %d\n", total_packed); );
-    
-#if defined(OPAL_DATATYPE_CUDA_TIMING)    
-    GET_TIME( end_total );
-    total_time = ELAPSED_TIME( start_total, end_total );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: total packing in %ld microsec, kernel %ld microsec\n", total_time, total_time-move_time ); );
-#endif
-    
-    if( pConvertor->bConverted == pConvertor->local_size ) {
-        pConvertor->flags |= CONVERTOR_COMPLETED;
-        if (pConvertor->gpu_buffer_ptr != NULL && free_required) {
-           opal_ddt_cuda_free_gpu_buffer(pConvertor->gpu_buffer_ptr, 0);
-           pConvertor->gpu_buffer_ptr = NULL;
-        }
-        return 1;
-    }        
-    return 0;
+        
+    return OPAL_SUCCESS;
 }
 
-int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t* pConvertor,
-                                                               struct iovec* iov,
-                                                               uint32_t* out_size,
-                                                               size_t* max_data )
+int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t* pConvertor, unsigned char *destination, size_t buffer_size, size_t *total_packed)
 {
     uint32_t i;
     uint32_t nb_blocks, thread_per_block, nb_blocks_used;
-    size_t buffer_size;
-    unsigned char *destination, *destination_base, *source_base;
-    size_t total_packed;
-    uint8_t buffer_isfull = 0, transfer_required, free_required;
+    unsigned char *destination_base, *source_base;
+    uint8_t buffer_isfull = 0;
     cudaError_t cuda_err;
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
@@ -1131,55 +1138,14 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     OPAL_PTRDIFF_TYPE ddt_extent;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
-    TIMER_DATA_TYPE start, end, start_total, end_total;
-    long total_time, move_time;
+    TIMER_DATA_TYPE start, end;
+    long total_time;
 #endif
-
- //   printf("buffer size %d, max_data %d\n", iov[0].iov_len, *max_data);
-    if ((iov[0].iov_base == NULL) || opal_ddt_cuda_is_gpu_buffer(iov[0].iov_base)) {
-        if (iov[0].iov_len == 0) {
-            buffer_size = DT_CUDA_BUFFER_SIZE;
-        } else {
-            buffer_size = iov[0].iov_len;
-        }
-        
-        if (iov[0].iov_base == NULL) {
-            iov[0].iov_base = (unsigned char *)opal_ddt_cuda_malloc_gpu_buffer(buffer_size, 0);
-            destination = (unsigned char *)iov[0].iov_base;
-            pConvertor->gpu_buffer_ptr = destination;
-            free_required = 1;
-        } else {
-            destination = (unsigned char *)iov[0].iov_base;
-            free_required = 0;
-        }
-        transfer_required = 0;
-    } else {
-        buffer_size = iov[0].iov_len;
-        if (OPAL_DATATYPE_VECTOR_USE_ZEROCPY) {
-            pConvertor->gpu_buffer_ptr = NULL;
-            transfer_required = 0;
-            free_required = 0;
-            cudaHostGetDevicePointer((void **)&destination, (void *)iov[0].iov_base, 0);
-        } else {
-            if (pConvertor->gpu_buffer_ptr == NULL) {
-                pConvertor->gpu_buffer_ptr = (unsigned char*)opal_ddt_cuda_malloc_gpu_buffer(buffer_size, 0);
-            }
-            transfer_required = 1;
-            free_required = 1;
-            destination = pConvertor->gpu_buffer_ptr;
-        }
-    }   
     
     DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack using IOV cached, GPU base %p, pack to buffer %p\n", pConvertor->pBaseBuf, destination););
 
-    total_packed = 0;
     cuda_streams->current_stream_id = 0;
     destination_base = destination;
-
-#if defined(OPAL_DATATYPE_CUDA_TIMING)
-    GET_TIME(start_total);
-#endif
-    
     thread_per_block = CUDA_WARP_SIZE * 5;
     nb_blocks = 256;
     source_base = (unsigned char*)pConvertor->pBaseBuf; 
@@ -1224,7 +1190,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     while( pConvertor->current_count < pConvertor->count && !buffer_isfull) {
         for (i = cuda_iov_start_pos; i < cuda_iov_end_pos && !buffer_isfull; i++) {
             if (buffer_size >= cached_cuda_iov_nb_bytes_list_h[i]) {
-                total_packed += cached_cuda_iov_nb_bytes_list_h[i];
+                *total_packed += cached_cuda_iov_nb_bytes_list_h[i];
                 buffer_size -= cached_cuda_iov_nb_bytes_list_h[i];
                 nb_blocks_used++;
             } else {
@@ -1250,41 +1216,8 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     pConvertor->current_cuda_iov_pos = pConvertor->current_cuda_iov_pos % cached_cuda_iov->cuda_iov_count;
 
     cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
-
-    pConvertor->bConverted += total_packed;
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "Pack total packed %d\n", total_packed); );
     
-#if defined(OPAL_DATATYPE_CUDA_TIMING)
-    GET_TIME(start);
-#endif
-    if (transfer_required) {
-        cudaMemcpy(iov[0].iov_base, pConvertor->gpu_buffer_ptr, total_packed, cudaMemcpyDeviceToHost);
-    } 
-#if defined(OPAL_DATATYPE_CUDA_TIMING) 
-    GET_TIME( end );
-    move_time = ELAPSED_TIME( start, end );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: DtoH memcpy in %ld microsec, transfer required %d\n", move_time, transfer_required ); );
-#endif
-
-    iov[0].iov_len = total_packed;
-    *max_data = total_packed;
-    *out_size = 1;
-    
-#if defined(OPAL_DATATYPE_CUDA_TIMING)    
-    GET_TIME( end_total );
-    total_time = ELAPSED_TIME( start_total, end_total );
-    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: total packing in %ld microsec, kernel %ld microsec\n", total_time, total_time-move_time ); );
-#endif
-    
-    if( pConvertor->bConverted == pConvertor->local_size ) {
-        pConvertor->flags |= CONVERTOR_COMPLETED;
-        if (pConvertor->gpu_buffer_ptr != NULL && free_required) {
-           opal_ddt_cuda_free_gpu_buffer(pConvertor->gpu_buffer_ptr, 0);
-           pConvertor->gpu_buffer_ptr = NULL;
-        }
-        return 1;
-    }        
-    return 0;
+    return OPAL_SUCCESS;
 }
 
 void pack_predefined_data_cuda( dt_elem_desc_t* ELEM,
