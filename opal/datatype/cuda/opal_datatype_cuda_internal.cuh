@@ -109,6 +109,7 @@ extern ddt_cuda_device_t *cuda_devices;
 extern ddt_cuda_device_t *current_cuda_device;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
+extern uint32_t cuda_iov_cache_enabled;
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
