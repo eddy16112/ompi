@@ -493,6 +493,9 @@ uint8_t opal_ddt_iov_to_cuda_iov(opal_convertor_t* pConvertor, const struct iove
         count_desc = length_per_iovec / alignment;
         residue_desc = length_per_iovec % alignment;
         nb_blocks_per_description = (count_desc + thread_per_block - 1) / thread_per_block;
+        if ((*nb_blocks_used + nb_blocks_per_description + 1) > (CUDA_MAX_NB_BLOCKS*CUDA_IOV_MAX_TASK_PER_BLOCK)) {
+            break;
+        }
         DT_CUDA_DEBUG ( opal_cuda_output(10, "DDT IOV to CUDA IOV description %d, size %d, residue %d, alignment %d, nb_block_aquired %d\n", i, count_desc, residue_desc, alignment, nb_blocks_per_description); );
         for (j = 0; j < nb_blocks_per_description; j++) {
             cuda_iov_dist_h_current[*nb_blocks_used].ncontig_disp = ncontig_disp_base + j * thread_per_block * alignment;
