@@ -34,6 +34,8 @@
 #include "opal/datatype/opal_convertor_internal.h"
 #include "opal/mca/base/mca_base_var.h"
 
+#include "opal/datatype/opal_datatype_ht.h"
+
 /* by default the debuging is turned off */
 int opal_datatype_dfd = -1;
 bool opal_unpack_debug = false;
@@ -225,6 +227,12 @@ int32_t opal_datatype_init( void )
         datatype->desc.desc[1].end_loop.first_elem_disp = datatype->desc.desc[0].elem.disp;
         datatype->desc.desc[1].end_loop.size            = datatype->size;
     }
+    
+#if defined (OPAL_DATATYPE_PARALLEL)
+    if (opal_datatype_ht_init() != OPAL_SUCCESS) {
+        opal_datatype_ht_fini();
+    }
+#endif /* defined OPAL_DATATYPE_PARALLEL */
 
     return OPAL_SUCCESS;
 }
@@ -247,6 +255,10 @@ int32_t opal_datatype_finalize( void )
 
     /* clear all master convertors */
     opal_convertor_destroy_masters();
+    
+#if defined (OPAL_DATATYPE_PARALLEL)  
+    opal_datatype_ht_fini();
+#endif /* defined OPAL_DATATYPE_PARALLEL */
 
     return OPAL_SUCCESS;
 }
