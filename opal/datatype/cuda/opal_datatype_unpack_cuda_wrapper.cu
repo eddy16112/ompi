@@ -830,7 +830,7 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
 
     cuda_streams->current_stream_id = 0;
     source_base = source;
-    thread_per_block = CUDA_WARP_SIZE * 5;
+    thread_per_block = CUDA_WARP_SIZE * 4;
     nb_blocks = 256;
     destination_base = (unsigned char*)pConvertor->pBaseBuf;
     
@@ -908,10 +908,19 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
 #endif
     opal_datatype_type_extent(pConvertor->pDesc, &ddt_extent);
     DT_CUDA_DEBUG ( opal_cuda_output(2, "Unpack kernel launched src_base %p, dst_base %p, nb_blocks %ld\n", source_base, destination_base, nb_blocks_used ); );
+
+#if defined(OPAL_DATATYPE_CUDA_TIMING)
+    GET_TIME(start);
+#endif    
     opal_generic_simple_unpack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, *cuda_stream_iov>>>(cached_cuda_iov_dist_d, pConvertor->current_cuda_iov_pos, cached_cuda_iov_count, ddt_extent, convertor_current_count, nb_blocks_used, destination_base, source_base, cuda_iov_partial_length_start, cuda_iov_partial_length_end);
 
     cudaStreamSynchronize(cuda_streams->opal_cuda_stream[0]);
-    
+#if defined(OPAL_DATATYPE_CUDA_TIMING)    
+    GET_TIME( end );
+    total_time = ELAPSED_TIME( start, end );
+    DT_CUDA_DEBUG ( opal_cuda_output(2, "[Timing]: Unpack kernel %ld microsec\n", total_time); );
+#endif
+
     return OPAL_SUCCESS;
 }
 
