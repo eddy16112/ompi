@@ -5,7 +5,7 @@
 #include <stdio.h> 
 #include <time.h>
 
-#if 1
+#if 0
 __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
                                                          size_t size,
                                                          OPAL_PTRDIFF_TYPE extent,
@@ -43,20 +43,20 @@ __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t copy_loops,
         _destination_tmp += num_threads;
     }
 #else
-    for (_i = tid; _i < copy_loops*nb_elements; _i+=16*num_threads) {
+    for (_i = tid; _i < copy_loops*nb_elements; _i+=8*num_threads) {
         uint64_t val[16];
         uint32_t _j;
         uint32_t u;
         uint64_t *mysrc = _src_disp_tmp + tid;
         
         #pragma unroll      
-        for (u = 0; u < 16; u++) {
+        for (u = 0; u < 8; u++) {
             _j = _i + u * num_threads;
             val[u] = *(mysrc + _j/num_threads*num_threads + _j/nb_elements * gap);
         } 
         
         #pragma unroll
-        for (u = 0; u < 16; u++) {
+        for (u = 0; u < 8; u++) {
             *_destination_tmp = val[u];
             _destination_tmp += num_threads;
         } 
@@ -184,7 +184,7 @@ __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t lines,
     	    for (int b=0; b<lines/(KERNEL_UNROLL*warp_nb); b++) {
     		    #pragma unroll
     		    for (int u=0; u<KERNEL_UNROLL; u++) {
-    		        val[u] = __ldg(src+(l+u)*extent);
+    		        val[u] = *(src+(l+u)*extent);
     		    }
     		    #pragma unroll
     		    for (int u=0; u<KERNEL_UNROLL; u++) {
@@ -194,7 +194,7 @@ __global__ void pack_contiguous_loop_cuda_kernel_global( uint32_t lines,
     	    }
     	    /* Finish non-unrollable case */
     	    for (int u=0; u<KERNEL_UNROLL && l<lines; u++) {
-    		    dst[l*size] = __ldg(src+l*extent);
+    		    dst[l*size] = *(src+l*extent);
     		    l++;
     	    }		
     	    col += width;

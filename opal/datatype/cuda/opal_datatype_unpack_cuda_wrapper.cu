@@ -774,6 +774,7 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_non_cached( opal_conver
 
         cudaMemcpyAsync(cuda_iov_dist_d_current, cuda_iov_dist_h_current, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, *cuda_stream_iov);
         opal_generic_simple_unpack_cuda_iov_cached_kernel<<<nb_blocks, thread_per_block, 0, *cuda_stream_iov>>>(cuda_iov_dist_d_current, 0, nb_blocks_used, 0, 0, nb_blocks_used, destination_base, source_base, 0, 0);
+        //cudaStreamSynchronize(*cuda_stream_iov);
         cuda_err = cudaEventRecord(cuda_iov_pipeline_block->cuda_event, *cuda_stream_iov);
         opal_cuda_check_error(cuda_err);
         iov_pipeline_block_id ++;
@@ -830,8 +831,8 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
 
     cuda_streams->current_stream_id = 0;
     source_base = source;
-    thread_per_block = CUDA_WARP_SIZE * 4;
-    nb_blocks = 256;
+    thread_per_block = CUDA_WARP_SIZE * 8;
+    nb_blocks = 2;
     destination_base = (unsigned char*)pConvertor->pBaseBuf;
     
     /* cuda iov is not cached, start to cache iov */

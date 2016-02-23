@@ -389,7 +389,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     cuda_iov_pipeline_block = current_cuda_device->cuda_iov_pipeline_block[0];
     cuda_iov_dist_h = cuda_iov_pipeline_block->cuda_iov_dist_cached_h;
     cuda_stream_iov = cuda_iov_pipeline_block->cuda_stream;
-    thread_per_block = CUDA_WARP_SIZE * 32;
+    thread_per_block = CUDA_WARP_SIZE * 64;
 
     for (i = 0; i < ddt_iov_count; i++) {
         length_per_iovec = ddt_iov[i].iov_len;
