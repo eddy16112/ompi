@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015      Intel, Inc. All rights reserved
+ * Copyright (c) 2014-2016 Intel, Inc. All rights reserved
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -130,6 +130,13 @@ typedef uint16_t orte_job_flags_t;
 #define ORTE_JOB_ROOM_NUM               (ORTE_JOB_START_KEY + 39)    // int - number of remote request's hotel room
 #define ORTE_JOB_LAUNCH_PROXY           (ORTE_JOB_START_KEY + 40)    // opal_process_name_t - name of spawn requestor
 #define ORTE_JOB_NSPACE_REGISTERED      (ORTE_JOB_START_KEY + 41)    // bool - job has been registered with embedded PMIx server
+#define ORTE_JOB_FIXED_DVM              (ORTE_JOB_START_KEY + 42)    // bool - do not change the size of the DVM for this job
+#define ORTE_JOB_DVM_JOB                (ORTE_JOB_START_KEY + 43)    // bool - job is using a DVM
+#define ORTE_JOB_CANCELLED              (ORTE_JOB_START_KEY + 44)    // bool - job was cancelled
+#define ORTE_JOB_OUTPUT_TO_FILE         (ORTE_JOB_START_KEY + 45)    // string - name of directory to which stdout/err is to be directed
+#define ORTE_JOB_MERGE_STDERR_STDOUT    (ORTE_JOB_START_KEY + 46)    // bool - merge stderr into stdout stream
+#define ORTE_JOB_TAG_OUTPUT             (ORTE_JOB_START_KEY + 47)    // bool - tag stdout/stderr
+#define ORTE_JOB_TIMESTAMP_OUTPUT       (ORTE_JOB_START_KEY + 48)    // bool - timestamp stdout/stderr
 
 #define ORTE_JOB_MAX_KEY   300
 

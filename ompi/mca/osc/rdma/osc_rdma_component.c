@@ -9,11 +9,13 @@
  *                         University of Stuttgart.  All rights reserved.
  * Copyright (c) 2004-2005 The Regents of the University of California.
  *                         All rights reserved.
- * Copyright (c) 2007-2015 Los Alamos National Security, LLC.  All rights
+ * Copyright (c) 2007-2016 Los Alamos National Security, LLC.  All rights
  *                         reserved.
  * Copyright (c) 2006-2008 University of Houston.  All rights reserved.
  * Copyright (c) 2010      Oracle and/or its affiliates.  All rights reserved.
  * Copyright (c) 2012-2015 Sandia National Laboratories.  All rights reserved.
+ * Copyright (c) 2015      NVIDIA Corporation.  All rights reserved.
+ * Copyright (c) 2015      Intel, Inc. All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -36,7 +38,11 @@
 
 #include "opal/threads/mutex.h"
 #include "opal/util/arch.h"
+#include "opal/util/argv.h"
 #include "opal/align.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/datatype/opal_datatype_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 
 #include "ompi/info/info.h"
 #include "ompi/communicator/communicator.h"
@@ -259,14 +265,21 @@ static int ompi_osc_rdma_component_init (bool enable_progress_threads,
     }
 
     OBJ_CONSTRUCT(&mca_osc_rdma_component.aggregate, opal_free_list_t);
-    ret = opal_free_list_init (&mca_osc_rdma_component.aggregate,
-                               sizeof(ompi_osc_rdma_aggregation_t), 8,
-                               OBJ_CLASS(ompi_osc_rdma_aggregation_t), 0, 0,
-                               32, 128, 32, NULL, 0, NULL, NULL, NULL);
-    if (OPAL_SUCCESS != ret) {
-        opal_output_verbose(1, ompi_osc_base_framework.framework_output,
-                            "%s:%d: opal_free_list_init failed: %d\n",
-                            __FILE__, __LINE__, ret);
+
+    if (!enable_mpi_threads && mca_osc_rdma_component.aggregation_limit) {
+        ret = opal_free_list_init (&mca_osc_rdma_component.aggregate,
+                                   sizeof(ompi_osc_rdma_aggregation_t), 8,
+                                   OBJ_CLASS(ompi_osc_rdma_aggregation_t), 0, 0,
+                                   32, 128, 32, NULL, 0, NULL, NULL, NULL);
+
+        if (OPAL_SUCCESS != ret) {
+            opal_output_verbose(1, ompi_osc_base_framework.framework_output,
+                                "%s:%d: opal_free_list_init failed: %d\n",
+                                __FILE__, __LINE__, ret);
+        }
+    } else {
+        /* only enable put aggregation when not using threads */
+        mca_osc_rdma_component.aggregation_limit = 0;
     }
 
     return ret;
@@ -302,6 +315,15 @@ static int ompi_osc_rdma_component_query (struct ompi_win_t *win, void **base, s
     if (MPI_WIN_FLAVOR_SHARED == flavor) {
         return -1;
     }
+
+#if OPAL_CUDA_SUPPORT
+    /* GPU buffers are not supported by the rdma component */
+    if (MPI_WIN_FLAVOR_CREATE == flavor) {
+        if (opal_cuda_check_bufs(*base, NULL)) {
+            return -1;
+        }
+    }
+#endif /* OPAL_CUDA_SUPPORT */
 
     if (OMPI_SUCCESS != ompi_osc_rdma_query_btls (comm, NULL)) {
         return -1;
@@ -605,7 +627,7 @@ static int allocate_state_shared (ompi_osc_rdma_module_t *module, void **base, s
                     peer->state_handle = (mca_btl_base_registration_handle_t *) state_region->btl_handle_data;
                 }
                 peer->state = (osc_rdma_counter_t) ((uintptr_t) state_region->base + state_base + module->state_size * i);
-                peer->state_endpoint = ompi_osc_rdma_peer_btl_endpoint (module, peer_rank);
+                peer->state_endpoint = ompi_osc_rdma_peer_btl_endpoint (module, temp[0].rank);
             }
 
             /* finish setting up the local peer structure */
@@ -985,7 +1007,7 @@ static int ompi_osc_rdma_component_select (struct ompi_win_t *win, void **base, 
     }
 
     /* initialize the objects, so that always free in cleanup */
-    OBJ_CONSTRUCT(&module->lock, opal_mutex_t);
+    OBJ_CONSTRUCT(&module->lock, opal_recursive_mutex_t);
     OBJ_CONSTRUCT(&module->outstanding_locks, opal_hash_table_t);
     OBJ_CONSTRUCT(&module->pending_posts, opal_list_t);
     OBJ_CONSTRUCT(&module->peer_lock, opal_mutex_t);

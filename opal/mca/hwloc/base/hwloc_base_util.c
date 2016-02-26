@@ -14,7 +14,7 @@
  * Copyright (c) 2012-2015 Los Alamos National Security, LLC.
  *                         All rights reserved.
  * Copyright (c) 2013-2014 Intel, Inc. All rights reserved.
- * Copyright (c) 2015      Research Organization for Information Science
+ * Copyright (c) 2015-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
@@ -71,7 +71,7 @@ hwloc_obj_t opal_hwloc_base_get_pu(hwloc_topology_t topo,
        So first we have to see if we can find *any* cores by looking
        for the 0th core.  If we find it, then try to find the Nth
        core.  Otherwise, try to find the Nth PU. */
-    if (NULL == hwloc_get_obj_by_type(topo, HWLOC_OBJ_CORE, 0)) {
+    if (opal_hwloc_use_hwthreads_as_cpus || (NULL == hwloc_get_obj_by_type(topo, HWLOC_OBJ_CORE, 0))) {
         obj_type = HWLOC_OBJ_PU;
     }
 
@@ -492,8 +492,11 @@ static void df_search_cores(hwloc_obj_t obj, unsigned int *cnt)
             obj->userdata = (void*)data;
         }
         if (NULL == opal_hwloc_base_cpu_set) {
-            if (!hwloc_bitmap_isincluded(obj->cpuset, obj->allowed_cpuset)) {
-                /* do not count not allowed cores */
+            if (!hwloc_bitmap_intersects(obj->cpuset, obj->allowed_cpuset)) {
+                /*
+                 * do not count not allowed cores (e.g. cores with zero allowed PU)
+                 * if SMT is enabled, do count cores with at least one allowed hwthread
+                 */
                 return;
             }
             data->npus = 1;
@@ -541,7 +544,6 @@ unsigned int opal_hwloc_base_get_npus(hwloc_topology_t topo,
                                       hwloc_obj_t obj)
 {
     opal_hwloc_obj_data_t *data;
-    int i;
     unsigned int cnt = 0;
     hwloc_cpuset_t cpuset;
 
@@ -579,16 +581,10 @@ unsigned int opal_hwloc_base_get_npus(hwloc_topology_t topo,
              * one bit for each available pu. We could just
              * subtract the first and last indices, but there
              * may be "holes" in the bitmap corresponding to
-             * offline or unallowed cpus - so we have to
-             * search for them
+             * offline or unallowed cpus - so we count them with
+             * the bitmap "weight" (a.k.a. population count) function
              */
-            for (i=hwloc_bitmap_first(cpuset), cnt=0;
-                 i <= hwloc_bitmap_last(cpuset);
-                 i++) {
-                if (hwloc_bitmap_isset(cpuset, i)) {
-                    cnt++;
-                }
-            }
+            cnt = hwloc_bitmap_weight(cpuset);
         }
         /* cache the info */
         data = (opal_hwloc_obj_data_t*)obj->userdata;  // in case it was added

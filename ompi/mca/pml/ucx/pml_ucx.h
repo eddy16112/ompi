@@ -69,13 +69,15 @@ extern mca_pml_ucx_module_t ompi_pml_ucx;
     _PML_UCX_QUOTE(_x)
 
 #define PML_UCX_ERROR(...) \
-    opal_output_verbose(0, ompi_pml_ucx.output, "Error: " __FILE__ ":" \
-                        PML_UCX_QUOTE(__LINE__) __VA_ARGS__)
+    opal_output_verbose(0, ompi_pml_ucx.output, \
+                        __FILE__ ":" PML_UCX_QUOTE(__LINE__) \
+                        " Error: " __VA_ARGS__)
 
 #define PML_UCX_VERBOSE(_level, ... ) \
     if (((_level) <= PML_UCX_MAX_VERBOSE) && ((_level) <= ompi_pml_ucx.verbose)) { \
-        opal_output_verbose(_level, ompi_pml_ucx.output, __FILE__ ":" \
-                            PML_UCX_QUOTE(__LINE__) __VA_ARGS__); \
+        opal_output_verbose(_level, ompi_pml_ucx.output, \
+                            __FILE__ ":" PML_UCX_QUOTE(__LINE__) " " \
+                            __VA_ARGS__); \
     }
 
 int mca_pml_ucx_open(void);
@@ -83,6 +85,7 @@ int mca_pml_ucx_close(void);
 int mca_pml_ucx_init(void);
 int mca_pml_ucx_cleanup(void);
 
+ucp_ep_h mca_pml_ucx_add_proc(ompi_communicator_t *comm, int dst);
 int mca_pml_ucx_add_procs(struct ompi_proc_t **procs, size_t nprocs);
 int mca_pml_ucx_del_procs(struct ompi_proc_t **procs, size_t nprocs);
 
@@ -143,5 +146,6 @@ int mca_pml_ucx_mrecv(void *buf, size_t count, ompi_datatype_t *datatype,
 int mca_pml_ucx_start(size_t count, ompi_request_t** requests);
 
 int mca_pml_ucx_dump(struct ompi_communicator_t* comm, int verbose);
+
 
 #endif /* PML_UCX_H_ */

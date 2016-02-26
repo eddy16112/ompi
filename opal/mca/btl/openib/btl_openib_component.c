@@ -11,7 +11,7 @@
  * Copyright (c) 2004-2005 The Regents of the University of California.
  *                         All rights reserved.
  * Copyright (c) 2006-2015 Cisco Systems, Inc.  All rights reserved.
- * Copyright (c) 2006-2009 Mellanox Technologies. All rights reserved.
+ * Copyright (c) 2006-2015 Mellanox Technologies. All rights reserved.
  * Copyright (c) 2006-2015 Los Alamos National Security, LLC.  All rights
  *                         reserved.
  * Copyright (c) 2006-2007 Voltaire All rights reserved.
@@ -42,7 +42,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stddef.h>
-#if BTL_OPENIB_MALLOC_HOOKS_ENABLED
+#if MEMORY_LINUX_MALLOC_ALIGN_ENABLED
 /*
  * The include of malloc.h below breaks abstractions in OMPI (by
  * directly including a header file from another component), but has
@@ -55,7 +55,7 @@
  * Internally, OMPI uses the built-in ptmalloc from the linux memory
  * component anyway.
  */
-#include "opal/mca/memory/linux/malloc.h"
+#include "opal/mca/memory/linux/memory_linux.h"
 #endif
 
 #include "opal/mca/event/event.h"
@@ -123,7 +123,6 @@ static void btl_openib_handle_incoming_completion(mca_btl_base_module_t* btl,
  * Local variables
  */
 static mca_btl_openib_device_t *receive_queues_device = NULL;
-static bool malloc_hook_set = false;
 static int num_devices_intentionally_ignored = 0;
 
 mca_btl_openib_component_t mca_btl_openib_component = {
@@ -146,30 +145,6 @@ mca_btl_openib_component_t mca_btl_openib_component = {
         .btl_progress = btl_openib_component_progress,
     }
 };
-
-#if BTL_OPENIB_MALLOC_HOOKS_ENABLED
-/* This is a memory allocator hook. The purpose of this is to make
- * every malloc aligned since this speeds up IB HCA work.
- * There two basic cases here:
- *
- * 1. Memory manager for Open MPI is enabled. Then memalign below will
- * be overridden by __memalign_hook which is set to
- * opal_memory_linux_memalign_hook.  Thus, _malloc_hook is going to
- * use opal_memory_linux_memalign_hook.
- *
- * 2. No memory manager support. The memalign below is just regular glibc
- * memalign which will be called through __malloc_hook instead of malloc.
- */
-static void *btl_openib_malloc_hook(size_t sz, const void* caller)
-{
-    if (sz < mca_btl_openib_component.memalign_threshold &&
-        malloc_hook_set) {
-        return mca_btl_openib_component.previous_malloc_hook(sz, caller);
-    } else {
-        return memalign(mca_btl_openib_component.use_memalign, sz);
-    }
-}
-#endif
 
 static int btl_openib_component_register(void)
 {
@@ -256,16 +231,6 @@ static int btl_openib_component_close(void)
     if (NULL != mca_btl_openib_component.default_recv_qps) {
         free(mca_btl_openib_component.default_recv_qps);
     }
-
-#if BTL_OPENIB_MALLOC_HOOKS_ENABLED
-    /* Must check to see whether the malloc hook was set before
-       assigning it back because ompi_info will call _register() and
-       then _close() (which won't set the hook) */
-    if (malloc_hook_set) {
-        __malloc_hook = mca_btl_openib_component.previous_malloc_hook;
-        malloc_hook_set = false;
-    }
-#endif
 
     /* close memory registration debugging output */
     opal_output_close (mca_btl_openib_component.memory_registration_verbose);
@@ -573,7 +538,7 @@ static int openib_reg_mr(void *reg_data, void *base, size_t size,
     }
 
     if (reg->access_flags & MCA_MPOOL_ACCESS_REMOTE_WRITE) {
-        access_flag |= IBV_ACCESS_REMOTE_WRITE;
+        access_flag |= IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE;
     }
 
     if (reg->access_flags & MCA_MPOOL_ACCESS_LOCAL_WRITE) {
@@ -582,7 +547,7 @@ static int openib_reg_mr(void *reg_data, void *base, size_t size,
 
 #if HAVE_DECL_IBV_ATOMIC_HCA
     if (reg->access_flags & MCA_MPOOL_ACCESS_REMOTE_ATOMIC) {
-        access_flag |= IBV_ACCESS_REMOTE_ATOMIC;
+        access_flag |= IBV_ACCESS_REMOTE_ATOMIC | IBV_ACCESS_LOCAL_WRITE;
     }
 #endif
 
@@ -822,13 +787,41 @@ static int init_one_port(opal_list_t *btl_list, mca_btl_openib_device_t *device,
             openib_btl->super.btl_get_local_registration_threshold = 0;
 
 #if HAVE_DECL_IBV_ATOMIC_HCA
-            if (openib_btl->device->ib_dev_attr.atomic_cap == IBV_ATOMIC_NONE) {
+            openib_btl->atomic_ops_be = false;
+
+#if HAVE_DECL_IBV_EXP_QUERY_DEVICE
+            /* check that 8-byte atomics are supported */
+            if (!(device->ib_exp_dev_attr.ext_atom.log_atomic_arg_sizes & (1<<3ull))) {
                 openib_btl->super.btl_flags &= ~MCA_BTL_FLAGS_ATOMIC_FOPS;
                 openib_btl->super.btl_atomic_flags = 0;
                 openib_btl->super.btl_atomic_fop = NULL;
                 openib_btl->super.btl_atomic_cswap = NULL;
-            } else if (IBV_ATOMIC_GLOB == openib_btl->device->ib_dev_attr.atomic_cap) {
+            }
+#endif
+
+#if HAVE_DECL_IBV_EXP_QUERY_DEVICE
+            switch (openib_btl->device->ib_exp_dev_attr.exp_atomic_cap)
+#else
+            switch (openib_btl->device->ib_dev_attr.atomic_cap)
+#endif
+            {
+            case IBV_ATOMIC_GLOB:
                 openib_btl->super.btl_flags |= MCA_BTL_ATOMIC_SUPPORTS_GLOB;
+                break;
+#if HAVE_DECL_IBV_EXP_ATOMIC_HCA_REPLY_BE
+            case IBV_EXP_ATOMIC_HCA_REPLY_BE:
+                openib_btl->atomic_ops_be = true;
+                break;
+#endif
+            case IBV_ATOMIC_HCA:
+                break;
+            case IBV_ATOMIC_NONE:
+            default:
+                /* no atomics or an unsupported atomic type */
+                openib_btl->super.btl_flags &= ~MCA_BTL_FLAGS_ATOMIC_FOPS;
+                openib_btl->super.btl_atomic_flags = 0;
+                openib_btl->super.btl_atomic_fop = NULL;
+                openib_btl->super.btl_atomic_cswap = NULL;
             }
 #endif
 
@@ -1607,7 +1600,8 @@ static int init_one_device(opal_list_t *btl_list, struct ibv_device* ib_dev)
     }
 
     device->mem_reg_active = 0;
-    device->mem_reg_max    = calculate_max_reg(ibv_get_device_name(ib_dev));
+    device->mem_reg_max_total = calculate_max_reg(ibv_get_device_name(ib_dev));
+    device->mem_reg_max = device->mem_reg_max_total;
     if(( 0 == device->mem_reg_max) && mca_btl_openib_component.abort_not_enough_reg_mem) {
         return OPAL_ERROR;
     }
@@ -1626,7 +1620,14 @@ static int init_one_device(opal_list_t *btl_list, struct ibv_device* ib_dev)
                     ibv_get_device_name(device->ib_dev), strerror(errno)));
         goto error;
     }
-
+#if HAVE_DECL_IBV_EXP_QUERY_DEVICE
+    device->ib_exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_RESERVED - 1;
+    if(ibv_exp_query_device(device->ib_dev_context, &device->ib_exp_dev_attr)){
+        BTL_ERROR(("error obtaining device attributes for %s errno says %s",
+                    ibv_get_device_name(device->ib_dev), strerror(errno)));
+        goto error;
+    }
+#endif
     if(ibv_query_device(device->ib_dev_context, &device->ib_dev_attr)){
         BTL_ERROR(("error obtaining device attributes for %s errno says %s",
                     ibv_get_device_name(device->ib_dev), strerror(errno)));
@@ -2511,19 +2512,14 @@ btl_openib_component_init(int *num_btl_modules,
     *num_btl_modules = 0;
     num_devs = 0;
 
-#if BTL_OPENIB_MALLOC_HOOKS_ENABLED
+#if MEMORY_LINUX_MALLOC_ALIGN_ENABLED
     /* If we got this far, then setup the memory alloc hook (because
        we're most likely going to be using this component). The hook
        is to be set up as early as possible in this function since we
-       want most of the allocated resources be aligned.*/
-    if (mca_btl_openib_component.use_memalign > 0 &&
-        (opal_mem_hooks_support_level() &
-            (OPAL_MEMORY_FREE_SUPPORT | OPAL_MEMORY_CHUNK_SUPPORT)) != 0) {
-        mca_btl_openib_component.previous_malloc_hook = __malloc_hook;
-        __malloc_hook = btl_openib_malloc_hook;
-        malloc_hook_set = true;
-    }
-#endif
+       want most of the allocated resources be aligned.
+     */
+    opal_memory_linux_malloc_set_alignment(32, mca_btl_openib_module.super.btl_eager_limit);
+#endif /* MEMORY_LINUX_MALLOC_ALIGN_ENABLED */
 
     /* Per https://svn.open-mpi.org/trac/ompi/ticket/1305, check to
        see if $sysfsdir/class/infiniband exists.  If it does not,
@@ -2924,13 +2920,6 @@ btl_openib_component_init(int *num_btl_modules,
 
     mca_btl_openib_component.ib_num_btls = 0;
     btl_openib_modex_send();
-#if BTL_OPENIB_MALLOC_HOOKS_ENABLED
-    /*Unset malloc hook since the component won't start*/
-    if (malloc_hook_set) {
-        __malloc_hook = mca_btl_openib_component.previous_malloc_hook;
-        malloc_hook_set = false;
-    }
-#endif
     if (NULL != btls) {
         free(btls);
     }
@@ -3445,6 +3434,11 @@ static void handle_wc(mca_btl_openib_device_t* device, const uint32_t cq,
             OPAL_THREAD_ADD32(&endpoint->get_tokens, 1);
 
             mca_btl_openib_get_frag_t *get_frag = to_get_frag(des);
+
+            /* check if atomic result needs to be byte swapped (mlx5) */
+            if (openib_btl->atomic_ops_be && IBV_WC_RDMA_READ != wc->opcode) {
+                *((int64_t *) frag->sg_entry.addr) = ntoh64 (*((int64_t *) frag->sg_entry.addr));
+            }
 
             get_frag->cb.func (&openib_btl->super, endpoint, (void *)(intptr_t) frag->sg_entry.addr,
                                get_frag->cb.local_handle, get_frag->cb.context, get_frag->cb.data,

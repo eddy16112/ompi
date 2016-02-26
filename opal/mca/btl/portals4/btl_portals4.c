@@ -292,13 +292,21 @@ create_peer_and_endpoint(int                       interface,
     OPAL_OUTPUT_VERBOSE((90, opal_btl_base_framework.framework_output,
         "btl/portals4: %d NI(s) declared in the modex", (int) (size/sizeof(ptl_process_t))));
 
+    /*
+     * check if create_endpoint() already created the endpoint.
+     * if not, create it here.
+     */
     if (NULL == *endpoint) {
         *endpoint = malloc(sizeof(mca_btl_base_endpoint_t));
         if (NULL == *endpoint) {
             return OPAL_ERR_OUT_OF_RESOURCE;
         }
-        (*endpoint)->ptl_proc.rank = proc->proc_name.vpid;
     }
+    /*
+     * regardless of who created the endpoint, set the rank here
+     * because we are using logical mapping.
+     */
+    (*endpoint)->ptl_proc.rank = proc->proc_name.vpid;
 
     phys_peer->phys.pid = id[interface].phys.pid;
     phys_peer->phys.nid = id[interface].phys.nid;
@@ -500,7 +508,6 @@ mca_btl_portals4_alloc(struct mca_btl_base_module_t* btl_base,
             size : portals4_btl->super.btl_max_send_size ;
     }
 
-    frag->md_h = PTL_INVALID_HANDLE;
     frag->base.des_segment_count = 1;
     frag->base.des_flags = flags | MCA_BTL_DES_SEND_ALWAYS_CALLBACK;
     frag->base.order = MCA_BTL_NO_ORDER;

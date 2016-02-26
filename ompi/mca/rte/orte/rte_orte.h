@@ -3,8 +3,9 @@
  *                         All rights reserved.
  * Copyright (c) 2013-2015 Intel, Inc. All rights reserved
  * Copyright (c) 2014      Cisco Systems, Inc.  All rights reserved.
- * Copyright (c) 2014      Research Organization for Information Science
+ * Copyright (c) 2014-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2015      Intel, Inc. All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -58,6 +59,10 @@ typedef orte_ns_cmp_bitmask_t ompi_rte_cmp_bitmask_t;
 #define OMPI_RTE_CMP_JOBID  ORTE_NS_CMP_JOBID
 #define OMPI_RTE_CMP_VPID   ORTE_NS_CMP_VPID
 #define OMPI_RTE_CMP_ALL    ORTE_NS_CMP_ALL
+#define OMPI_LOCAL_JOBID(jobid) ORTE_LOCAL_JOBID(jobid)
+#define OMPI_JOB_FAMILY(jobid)  ORTE_JOB_FAMILY(jobid)
+#define OMPI_CONSTRUCT_JOBID(family,local) ORTE_CONSTRUCT_JOBID(family,local)
+
 /* This is the DSS tag to serialize a proc name */
 #define OMPI_NAME ORTE_NAME
 #define OMPI_PROCESS_NAME_HTON ORTE_PROCESS_NAME_HTON
@@ -83,16 +88,10 @@ typedef orte_local_rank_t ompi_local_rank_t;
 OMPI_DECLSPEC void __opal_attribute_noreturn__
   ompi_rte_abort(int error_code, char *fmt, ...);
 #define ompi_rte_abort_peers(a, b, c) orte_errmgr.abort_peers(a, b, c)
-#define OMPI_RTE_ERRHANDLER_FIRST ORTE_ERRMGR_CALLBACK_FIRST
-#define OMPI_RTE_ERRHANDLER_LAST ORTE_ERRMGR_CALLBACK_LAST
-#define OMPI_RTE_ERRHANDLER_PREPEND ORTE_ERRMGR_CALLBACK_PREPEND
-#define OMPI_RTE_ERRHANDLER_APPEND ORTE_ERRMGR_CALLBACK_APPEND
-typedef orte_error_t ompi_rte_error_report_t;
-#define ompi_rte_register_errhandler(a, b) orte_errmgr.register_error_callback(a, b)
 #define OMPI_ERROR_LOG ORTE_ERROR_LOG
 
 /* Init and finalize objects and operations */
-#define ompi_rte_init(a, b) orte_init(a, b, ORTE_PROC_MPI)
+OMPI_DECLSPEC int ompi_rte_init(int *pargc, char ***pargv);
 #define ompi_rte_finalize() orte_finalize()
 OMPI_DECLSPEC void ompi_rte_wait_for_debugger(void);
 

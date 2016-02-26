@@ -12,7 +12,7 @@
  *                         All rights reserved.
  * Copyright (c) 2006-2011 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2006-2009 Mellanox Technologies. All rights reserved.
- * Copyright (c) 2006-2015 Los Alamos National Security, LLC.  All rights
+ * Copyright (c) 2006-2016 Los Alamos National Security, LLC.  All rights
  *                         reserved.
  * Copyright (c) 2006-2007 Voltaire All rights reserved.
  * Copyright (c) 2009-2010 Oracle and/or its affiliates.  All rights reserved.
@@ -300,11 +300,6 @@ struct mca_btl_openib_component_t {
 #if BTL_OPENIB_FAILOVER_ENABLED
     int verbose_failover;
 #endif
-#if BTL_OPENIB_MALLOC_HOOKS_ENABLED
-    int use_memalign;
-    size_t memalign_threshold;
-    void* (*previous_malloc_hook)(size_t __size, const void*);
-#endif
 #if OPAL_CUDA_SUPPORT
     bool cuda_async_send;
     bool cuda_async_recv;
@@ -371,6 +366,9 @@ typedef struct mca_btl_openib_device_t {
 #endif
     opal_mutex_t device_lock;          /* device level lock */
     struct ibv_context *ib_dev_context;
+#if HAVE_DECL_IBV_EXP_QUERY_DEVICE
+    struct ibv_exp_device_attr ib_exp_dev_attr;
+#endif
     struct ibv_device_attr ib_dev_attr;
     struct ibv_pd *ib_pd;
     struct ibv_cq *ib_cq[2];
@@ -406,7 +404,7 @@ typedef struct mca_btl_openib_device_t {
     /* Maximum value supported by this device for max_inline_data */
     uint32_t max_inline_data;
     /* Registration limit and current count */
-    uint64_t mem_reg_max, mem_reg_active;
+    uint64_t mem_reg_max, mem_reg_max_total, mem_reg_active;
     /* Device is ready for use */
     bool ready_for_use;
     /* Async event */
@@ -460,6 +458,7 @@ struct mca_btl_openib_module_t {
     mca_btl_base_module_t  super;
 
     bool btl_inited;
+    bool srqs_created;
 
     /** Common information about all ports */
     mca_btl_openib_modex_message_t port_info;
@@ -490,6 +489,8 @@ struct mca_btl_openib_module_t {
     mca_btl_openib_module_qp_t * qps;
 
     int local_procs;                   /** number of local procs */
+
+    bool atomic_ops_be;                /** atomic result is big endian */
 };
 typedef struct mca_btl_openib_module_t mca_btl_openib_module_t;
 

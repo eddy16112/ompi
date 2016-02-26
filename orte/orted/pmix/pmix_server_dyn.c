@@ -13,10 +13,10 @@
  *                         All rights reserved.
  * Copyright (c) 2009      Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2011      Oak Ridge National Labs.  All rights reserved.
- * Copyright (c) 2013-2015 Intel, Inc.  All rights reserved.
+ * Copyright (c) 2013-2016 Intel, Inc.  All rights reserved.
  * Copyright (c) 2014      Mellanox Technologies, Inc.
  *                         All rights reserved.
- * Copyright (c) 2014      Research Organization for Information Science
+ * Copyright (c) 2014-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
@@ -32,6 +32,7 @@
 #include <unistd.h>
 #endif
 
+#include "opal/util/argv.h"
 #include "opal/util/opal_getcwd.h"
 #include "opal/util/os_path.h"
 #include "opal/util/output.h"
@@ -172,7 +173,7 @@ int pmix_server_spawn_fn(opal_process_name_t *requestor,
     /* transfer the job info across */
     OPAL_LIST_FOREACH(info, job_info, opal_value_t) {
         if (0 == strcmp(info->key, OPAL_PMIX_PERSONALITY)) {
-            jdata->personality = strdup(info->data.string);
+            jdata->personality = opal_argv_split(info->data.string, ',');
         } else if (0 == strcmp(info->key, OPAL_PMIX_MAPPER)) {
             if (NULL == jdata->map) {
                 jdata->map = OBJ_NEW(orte_job_map_t);
@@ -261,6 +262,10 @@ int pmix_server_spawn_fn(opal_process_name_t *requestor,
             orte_show_help("help-orted.txt", "bad-key",
                            true, "spawn", "job level", info->key);
         }
+    }
+    /* if the job is missing a personality setting, add it */
+    if (NULL == jdata->personality) {
+        opal_argv_append_nosize(&jdata->personality, "ompi");
     }
 
     /* transfer the apps across */
@@ -412,7 +417,7 @@ static void _cnct(int sd, short args, void *cbdata)
             }
             /* ask the global data server for the data - if we get it,
              * then we can complete the request */
-            key = opal_convert_jobid_to_string(nm->name.jobid);
+            orte_util_convert_jobid_to_string(&key, nm->name.jobid);
             opal_argv_append_nosize(&keys, key);
             free(key);
             if (ORTE_SUCCESS != (rc = pmix_server_lookup_fn(&nm->name, keys, cd->info, _cnlk, cd))) {

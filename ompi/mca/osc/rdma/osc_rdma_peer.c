@@ -2,12 +2,18 @@
 /*
  * Copyright (c) 2007-2015 Los Alamos National Security, LLC.  All rights
  *                         reserved.
+ * Copyright (c) 2015      Research Organization for Information Science
+ *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
  *
  * $HEADER$
  */
+
+#ifdef HAVE_ALLOCA_H
+#include <alloca.h>
+#endif
 
 #include "osc_rdma_comm.h"
 
@@ -179,6 +185,7 @@ static int ompi_osc_rdma_peer_setup (ompi_osc_rdma_module_t *module, ompi_osc_rd
     OSC_RDMA_VERBOSE(MCA_BASE_VERBOSE_DEBUG, "peer %d: remote base region: 0x%" PRIx64 ", size: %" PRId64
                      ", flags: 0x%x, disp_unit: %d", peer->rank, base_region->base, base_region->len,
                      peer->flags, disp_unit);
+    (void)disp_unit;  // silence compiler warning
 
     if (ompi_osc_rdma_peer_local_base (peer)) {
         /* for now we store the local address in the standard place. do no overwrite it */

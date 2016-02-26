@@ -158,10 +158,6 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
             rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
         }
     }
-#else
-    /* Just do the rendezvous but set initial data to be sent to zero */
-    rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
-#endif /* OPAL_CUDA_SUPPORT_41 */
     return rc;
 }
 

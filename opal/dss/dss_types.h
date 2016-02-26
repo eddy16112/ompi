@@ -13,9 +13,9 @@
  * Copyright (c) 2007-2011 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2012-2013 Los Alamos National Security, Inc. All rights
  *                         reserved.
- * Copyright (c) 2014      Intel, Inc. All rights reserved.
- * Copyright (c) 2014      Research Organization for Information Science
+ * Copyright (c) 2014-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2014-2016 Intel, Inc. All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -47,6 +47,7 @@ typedef struct {
     opal_jobid_t jobid;
     opal_vpid_t vpid;
 } opal_process_name_t;
+#define OPAL_SIZEOF_PROCESS_NAME_T 8
 
 BEGIN_C_DECLS
 
@@ -119,6 +120,8 @@ typedef struct {
 #define    OPAL_NAME                (opal_data_type_t)   50
 #define    OPAL_JOBID               (opal_data_type_t)   51
 #define    OPAL_VPID                (opal_data_type_t)   52
+#define    OPAL_STATUS              (opal_data_type_t)   53
+
     /* OPAL Dynamic */
 #define    OPAL_DSS_ID_DYNAMIC      (opal_data_type_t)  100
 
@@ -244,6 +247,7 @@ typedef struct {
         float fval;
         double dval;
         struct timeval tv;
+        int status;
         opal_process_name_t name;
         opal_bool_array_t flag_array;
         opal_uint8_array_t byte_array;
