@@ -13,7 +13,7 @@
  * Copyright (c) 2009-2010 Oracle and/or its affiliates.  All rights reserved.
  * Copyright (c) 2011-2013 Los Alamos National Security, LLC.
  *                         All rights reserved.
- * Copyright (c) 2013-2015 Intel, Inc. All rights reserved
+ * Copyright (c) 2013-2016 Intel, Inc. All rights reserved
  * Copyright (c) 2014-2015 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
@@ -130,7 +130,7 @@ orte_timer_t *orte_mpiexec_timeout = NULL;
 opal_buffer_t *orte_tree_launch_cmd = NULL;
 
 /* global arrays for data storage */
-opal_pointer_array_t *orte_job_data = NULL;
+opal_hash_table_t *orte_job_data = NULL;
 opal_pointer_array_t *orte_node_pool = NULL;
 opal_pointer_array_t *orte_node_topologies = NULL;
 opal_pointer_array_t *orte_local_children = NULL;
@@ -155,6 +155,7 @@ bool orte_default_hostfile_given = false;
 char *orte_rankfile = NULL;
 int orte_num_allocated_nodes = 0;
 char *orte_node_regex = NULL;
+char *orte_default_dash_host = NULL;
 
 /* tool communication controls */
 bool orte_report_events = false;
@@ -415,22 +416,16 @@ int orte_dt_init(void)
 
 orte_job_t* orte_get_job_data_object(orte_jobid_t job)
 {
-    int32_t ljob;
+    orte_job_t *jdata;
 
     /* if the job data wasn't setup, we cannot provide the data */
     if (NULL == orte_job_data) {
         return NULL;
     }
 
-    /* the job is indexed by its local jobid, so we can
-     * just look it up here. it is not an error for this
-     * to not be found - could just be
-     * a race condition whereby the job has already been
-     * removed from the array. The get_item function
-     * will just return NULL in that case.
-     */
-    ljob = ORTE_LOCAL_JOBID(job);
-    return (orte_job_t*)opal_pointer_array_get_item(orte_job_data, ljob);
+    jdata = NULL;
+    opal_hash_table_get_value_uint32(orte_job_data, job, (void**)&jdata);
+    return jdata;
 }
 
 orte_proc_t* orte_get_proc_object(orte_process_name_t *proc)
@@ -467,6 +462,12 @@ char* orte_get_proc_hostname(orte_process_name_t *proc)
     orte_proc_t *proct;
     char *hostname = NULL;
     int rc;
+
+    /* if we are a tool, then we have no way of obtaining
+     * this info */
+    if (ORTE_PROC_IS_TOOL) {
+        return NULL;
+    }
 
     /* don't bother error logging any not-found situations
      * as the layer above us will have something to say
@@ -660,7 +661,6 @@ static void orte_job_destruct(orte_job_t* job)
 {
     orte_proc_t *proc;
     orte_app_context_t *app;
-    orte_job_t *jdata;
     int n;
     orte_timer_t *evtimer;
 
@@ -675,7 +675,7 @@ static void orte_job_destruct(orte_job_t* job)
     }
 
     if (NULL != job->personality) {
-        free(job->personality);
+        opal_argv_free(job->personality);
     }
     for (n=0; n < job->apps->size; n++) {
         if (NULL == (app = (orte_app_context_t*)opal_pointer_array_get_item(job->apps, n))) {
@@ -717,18 +717,9 @@ static void orte_job_destruct(orte_job_t* job)
     /* release the attributes */
     OPAL_LIST_DESTRUCT(&job->attributes);
 
-    /* find the job in the global array */
     if (NULL != orte_job_data && ORTE_JOBID_INVALID != job->jobid) {
-        for (n=0; n < orte_job_data->size; n++) {
-            if (NULL == (jdata = (orte_job_t*)opal_pointer_array_get_item(orte_job_data, n))) {
-                continue;
-            }
-            if (jdata->jobid == job->jobid) {
-                /* set the entry to NULL */
-                opal_pointer_array_set_item(orte_job_data, n, NULL);
-                break;
-            }
-        }
+        /* remove the job from the global array */
+        opal_hash_table_remove_value_uint32(orte_job_data, job->jobid);
     }
 }
 

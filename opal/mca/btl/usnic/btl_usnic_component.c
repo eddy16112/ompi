@@ -12,7 +12,7 @@
  *                         All rights reserved.
  * Copyright (c) 2006      Sandia National Laboratories. All rights
  *                         reserved.
- * Copyright (c) 2008-2015 Cisco Systems, Inc.  All rights reserved.
+ * Copyright (c) 2008-2016 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2012-2014 Los Alamos National Security, LLC.  All rights
  *                         reserved.
  * Copyright (c) 2014      Intel, Inc. All rights reserved.
@@ -87,7 +87,7 @@
 #define OPAL_BTL_USNIC_NUM_COMPLETIONS 500
 
 /* RNG buffer definition */
-opal_rng_buff_t opal_btl_usnic_rand_buff;
+opal_rng_buff_t opal_btl_usnic_rand_buff = {0};
 
 /* simulated clock */
 uint64_t opal_btl_usnic_ticks = 0;
@@ -956,11 +956,12 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         /* Output all of this module's values. */
         const char *devname = module->fabric_info->fabric_attr->name;
         opal_output_verbose(5, USNIC_OUT,
-                            "btl:usnic: %s num sqe=%d, num rqe=%d, num cqe=%d",
+                            "btl:usnic: %s num sqe=%d, num rqe=%d, num cqe=%d, num aveqe=%d",
                             devname,
                             module->sd_num,
                             module->rd_num,
-                            module->cq_num);
+                            module->cq_num,
+                            module->av_eq_num);
         opal_output_verbose(5, USNIC_OUT,
                             "btl:usnic: %s priority MTU = %" PRIsize_t,
                             devname,

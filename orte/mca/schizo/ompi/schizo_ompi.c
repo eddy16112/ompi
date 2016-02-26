@@ -49,9 +49,9 @@
 
 #include "orte/mca/schizo/schizo.h"
 
-static int parse_cli(char *personality,
+static int parse_cli(char **personality,
                      int argc, int start, char **argv);
-static int parse_env(char *personality,
+static int parse_env(char **personality,
                      char *path,
                      opal_cmd_line_t *cmd_line,
                      char **srcenv,
@@ -69,7 +69,7 @@ orte_schizo_base_module_t orte_schizo_ompi_module = {
     setup_child
 };
 
-static int parse_cli(char *personality,
+static int parse_cli(char **personality,
                      int argc, int start, char **argv)
 {
     int i, j, k;
@@ -81,6 +81,18 @@ static int parse_cli(char *personality,
         "routed",
         NULL
     };
+    bool takeus = false;
+
+    /* see if we are included */
+    for (i=0; NULL != personality[i]; i++) {
+        if (0 == strcmp(personality[i], "ompi")) {
+            takeus = true;
+            break;
+        }
+    }
+    if (!takeus) {
+        return ORTE_ERR_TAKE_NEXT_OPTION;
+    }
 
     for (i = 0; i < (argc-start); ++i) {
         if (0 == strcmp("-mca",  argv[i]) ||
@@ -150,7 +162,7 @@ static int parse_cli(char *personality,
     return ORTE_SUCCESS;
 }
 
-static int parse_env(char *personality,
+static int parse_env(char **personality,
                      char *path,
                      opal_cmd_line_t *cmd_line,
                      char **srcenv,
@@ -161,6 +173,18 @@ static int parse_env(char *personality,
     char *value;
     char *env_set_flag;
     char **vars;
+    bool takeus = false;
+
+    /* see if we are included */
+    for (i=0; NULL != personality[i]; i++) {
+        if (0 == strcmp(personality[i], "ompi")) {
+            takeus = true;
+            break;
+        }
+    }
+    if (!takeus) {
+        return ORTE_ERR_TAKE_NEXT_OPTION;
+    }
 
     for (i = 0; NULL != srcenv[i]; ++i) {
         if (0 == strncmp("OMPI_", srcenv[i], 5)) {
@@ -281,6 +305,18 @@ static int setup_fork(orte_job_t *jdata,
     char **envcpy, **nps, **firstranks;
     char *npstring, *firstrankstring;
     char *num_app_ctx;
+    bool takeus = false;
+
+    /* see if we are included */
+    for (i=0; NULL != jdata->personality[i]; i++) {
+        if (0 == strcmp(jdata->personality[i], "ompi")) {
+            takeus = true;
+            break;
+        }
+    }
+    if (!takeus) {
+        return ORTE_ERR_TAKE_NEXT_OPTION;
+    }
 
     /* see if the mapper thinks we are oversubscribed */
     oversubscribed = false;
@@ -420,13 +456,14 @@ static int setup_fork(orte_job_t *jdata,
      */
     opal_setenv("OMPI_MCA_orte_bound_at_launch", "1", true, &app->env);
 
-    /* tell the ESS to select the pmi component - but don't override
+    /* tell the ESS to avoid the singleton component - but don't override
      * anything that may have been provided elsewhere
      */
-    opal_setenv("OMPI_MCA_ess", "pmi", false, &app->env);
+    opal_setenv("OMPI_MCA_ess", "^singleton", false, &app->env);
 
-    /* ensure that the spawned process ignores direct launch components */
-    opal_setenv("OMPI_MCA_pmix", "^s1,s2,cray", true, &app->env);
+    /* ensure that the spawned process ignores direct launch components,
+     * but do not overrride anything we were given */
+    opal_setenv("OMPI_MCA_pmix", "^s1,s2,cray", false, &app->env);
 
     /* since we want to pass the name as separate components, make sure
      * that the "name" environmental variable is cleared!
@@ -498,8 +535,20 @@ static int setup_child(orte_job_t *jdata,
                        orte_app_context_t *app)
 {
     char *param, *value;
-    int rc;
+    int rc, i;
     int32_t nrestarts=0, *nrptr;
+    bool takeus = false;
+
+    /* see if we are included */
+    for (i=0; NULL != jdata->personality[i]; i++) {
+        if (0 == strcmp(jdata->personality[i], "ompi")) {
+            takeus = true;
+            break;
+        }
+    }
+    if (!takeus) {
+        return ORTE_ERR_TAKE_NEXT_OPTION;
+    }
 
     /* setup the jobid */
     if (ORTE_SUCCESS != (rc = orte_util_convert_jobid_to_string(&value, child->name.jobid))) {

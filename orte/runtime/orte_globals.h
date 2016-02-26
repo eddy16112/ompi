@@ -13,7 +13,7 @@
  * Copyright (c) 2007-2012 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2011-2013 Los Alamos National Security, LLC.
  *                         All rights reserved.
- * Copyright (c) 2013-2015 Intel, Inc. All rights reserved
+ * Copyright (c) 2013-2016 Intel, Inc. All rights reserved
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -303,7 +303,7 @@ typedef struct {
     /** Base object so this can be put on a list */
     opal_list_item_t super;
     /* personality for this job */
-    char *personality;
+    char **personality;
     /* jobid for this job */
     orte_jobid_t jobid;
     /* offset to the total number of procs so shared memory
@@ -515,7 +515,7 @@ ORTE_DECLSPEC extern orte_timer_t *orte_mpiexec_timeout;
 ORTE_DECLSPEC extern opal_buffer_t *orte_tree_launch_cmd;
 
 /* global arrays for data storage */
-ORTE_DECLSPEC extern opal_pointer_array_t *orte_job_data;
+ORTE_DECLSPEC extern opal_hash_table_t *orte_job_data;
 ORTE_DECLSPEC extern opal_pointer_array_t *orte_node_pool;
 ORTE_DECLSPEC extern opal_pointer_array_t *orte_node_topologies;
 ORTE_DECLSPEC extern opal_pointer_array_t *orte_local_children;
@@ -540,6 +540,7 @@ ORTE_DECLSPEC extern bool orte_default_hostfile_given;
 ORTE_DECLSPEC extern char *orte_rankfile;
 ORTE_DECLSPEC extern int orte_num_allocated_nodes;
 ORTE_DECLSPEC extern char *orte_node_regex;
+ORTE_DECLSPEC extern char *orte_default_dash_host;
 
 /* PMI version control */
 ORTE_DECLSPEC extern int orted_pmi_version;

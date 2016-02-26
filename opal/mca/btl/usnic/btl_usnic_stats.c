@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 Cisco Systems, Inc.  All rights reserved.
+ * Copyright (c) 2013-2016 Cisco Systems, Inc.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -82,9 +82,11 @@ void opal_btl_usnic_print_stats(
     char tmp[128], str[2048];
 
     /* The usuals */
-    snprintf(str, sizeof(str), "%s:MCW:%3u, ST(P+D)/F/C/R(T+F)/A:%8lu(%8u+%8u)/%8lu/%8lu/%4lu(%4lu+%4lu)/%8lu, RcvTot/Chk/F/C/L/H/D/BF/A:%8lu/%c%c/%8lu/%8lu/%4lu+%2lu/%4lu/%4lu/%6lu OA/DA %4lu/%4lu CRC:%4lu ",
+    snprintf(str, sizeof(str), "%s:MCW:%3u, %s, ST(P+D)/F/C/R(T+F)/A:%8lu(%8u+%8u)/%8lu/%8lu/%4lu(%4lu+%4lu)/%8lu, RcvTot/Chk/F/C/L/H/D/BF/A:%8lu/%c%c/%8lu/%8lu/%4lu+%2lu/%4lu/%4lu/%6lu OA/DA %4lu/%4lu CRC:%4lu ",
              prefix,
              opal_proc_local_get()->proc_name.vpid,
+
+             module->fabric_info->fabric_attr->name,
 
              module->stats.num_total_sends,
              module->mod_channels[USNIC_PRIORITY_CHANNEL].num_channel_sends,
@@ -143,8 +145,9 @@ void opal_btl_usnic_print_stats(
             /* Number of un-acked sends (i.e., sends for which we're
                still waiting for ACK) */
             send_unacked =
-                endpoint->endpoint_next_seq_to_send -
-                endpoint->endpoint_ack_seq_rcvd - 1;
+                SEQ_DIFF(endpoint->endpoint_next_seq_to_send,
+                         SEQ_DIFF(endpoint->endpoint_ack_seq_rcvd, 1));
+
             if (send_unacked > su_max) su_max = send_unacked;
             if (send_unacked < su_min) su_min = send_unacked;
 
@@ -194,11 +197,6 @@ static void usnic_stats_callback(int fd, short flags, void *arg)
 
     opal_btl_usnic_print_stats(module, tmp,
                                /*reset=*/mca_btl_usnic_component.stats_relative);
-
-    /* In OMPI v1.6, we have to re-add this event (because there's an
-       old libevent in OMPI v1.6) */
-    opal_event_add(&(module->stats.timer_event),
-                   &(module->stats.timeout));
 }
 
 /*

@@ -18,7 +18,7 @@
  * Copyright (c) 2011      Sandia National Laboratories. All rights reserved.
  * Copyright (c) 2012-2013 Inria.  All rights reserved.
  * Copyright (c) 2014-2015 Intel, Inc. All rights reserved.
- * Copyright (c) 2014-2015 Research Organization for Information Science
+ * Copyright (c) 2014-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  *
  * $COPYRIGHT$
@@ -98,7 +98,7 @@
 #endif
 #include "ompi/runtime/ompi_cr.h"
 
-#if defined(MEMORY_LINUX_PTMALLOC2) && MEMORY_LINUX_PTMALLOC2
+#if defined(MEMORY_LINUX_PTMALLOC2) && MEMORY_LINUX_PTMALLOC2 && MEMORY_LINUX_HAVE_MALLOC_HOOK_SUPPORT
 #include "opal/mca/memory/linux/memory_linux.h"
 /* So this sucks, but with OPAL in its own library that is brought in
    implicity from libmpi, there are times when the malloc initialize
@@ -106,7 +106,7 @@
    from here, since any MPI code is going to call MPI_Init... */
 OPAL_DECLSPEC void (*__malloc_initialize_hook) (void) =
     opal_memory_linux_malloc_init_hook;
-#endif
+#endif /* defined(MEMORY_LINUX_PTMALLOC2) && MEMORY_LINUX_PTMALLOC2 && MEMORY_LINUX_HAVE_MALLOC_HOOK_SUPPORT */
 
 /* This is required for the boundaries of the hash tables used to store
  * the F90 types returned by the MPI_Type_create_f90_XXX functions.
@@ -378,6 +378,7 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
     size_t nprocs;
     char *error = NULL;
     char *cmd=NULL, *av=NULL;
+    ompi_errhandler_errtrk_t errtrk;
     OPAL_TIMING_DECLARE(tm);
     OPAL_TIMING_INIT_EXT(&tm, OPAL_TIMING_GET_TIME_OF_DAY);
 
@@ -504,11 +505,18 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
         }
     }
 
-    /* Register the default errhandler callback - RTE will ignore if it
-     * doesn't support this capability
-     */
-    ompi_rte_register_errhandler(ompi_errhandler_runtime_callback,
-                                 OMPI_RTE_ERRHANDLER_LAST);
+    /* Register the default errhandler callback  */
+    errtrk.status = OPAL_ERROR;
+    errtrk.active = true;
+    opal_pmix.register_errhandler(NULL, ompi_errhandler_callback,
+                                  ompi_errhandler_registration_callback,
+                                  (void*)&errtrk);
+    OMPI_WAIT_FOR_COMPLETION(errtrk.active);
+    if (OPAL_SUCCESS != errtrk.status) {
+        error = "Error handler registration";
+        ret = errtrk.status;
+        goto error;
+    }
 
     /* Figure out the final MPI thread levels.  If we were not
        compiled for support for MPI threads, then don't allow
@@ -639,10 +647,9 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
 
     /* exchange connection info - this function may also act as a barrier
      * if data exchange is required. The modex occurs solely across procs
-     * in our job, so no proc array is passed. If a barrier is required,
-     * the "modex" function will perform it internally
-     */
-    OPAL_MODEX(NULL, 1);
+     * in our job. If a barrier is required, the "modex" function will
+     * perform it internally */
+    OPAL_MODEX();
 
     OPAL_TIMING_MNEXT((&tm,"time from modex to first barrier"));
 

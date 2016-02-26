@@ -89,6 +89,7 @@ enum {
 
 struct pml_ucx_persistent_request {
     ompi_request_t                    ompi;
+    ompi_request_t                    *tmp_req;
     unsigned                          flags;
     void                              *buffer;
     size_t                            count;
@@ -114,7 +115,7 @@ void mca_pml_ucx_psend_completion(void *request, ucs_status_t status);
 void mca_pml_ucx_precv_completion(void *request, ucs_status_t status,
                                   ucp_tag_recv_info_t *info);
 
-void mca_pml_ucx_persistent_requset_complete(mca_pml_ucx_persistent_request_t *preq,
+void mca_pml_ucx_persistent_request_complete(mca_pml_ucx_persistent_request_t *preq,
                                              ompi_request_t *tmp_req);
 
 void mca_pml_ucx_completed_request_init(ompi_request_t *ompi_req);
@@ -126,7 +127,12 @@ void mca_pml_ucx_request_cleanup(void *request);
 
 static inline ucp_ep_h mca_pml_ucx_get_ep(ompi_communicator_t *comm, int dst)
 {
-    return ompi_comm_peer_lookup(comm, dst)->proc_endpoints[OMPI_PROC_ENDPOINT_TAG_PML];
+    ucp_ep_h ep = ompi_comm_peer_lookup(comm,dst)->proc_endpoints[OMPI_PROC_ENDPOINT_TAG_PML];
+    if (OPAL_UNLIKELY(NULL == ep)) {
+        ep = mca_pml_ucx_add_proc(comm, dst);
+    }
+
+    return ep;
 }
 
 static inline void mca_pml_ucx_request_reset(ompi_request_t *req)

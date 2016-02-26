@@ -53,6 +53,7 @@
  typedef struct {
     opal_object_t super;
     opal_event_t ev;
+    int status;
     int timeout;
     int room_num;
     int remote_room_num;
@@ -64,6 +65,7 @@
     opal_pmix_modex_cbfunc_t mdxcbfunc;
     opal_pmix_spawn_cbfunc_t spcbfunc;
     opal_pmix_lookup_cbfunc_t lkcbfunc;
+    opal_pmix_release_cbfunc_t rlcbfunc;
     void *cbdata;
 } pmix_server_req_t;
 OBJ_CLASS_DECLARATION(pmix_server_req_t);
@@ -73,6 +75,7 @@ typedef struct {
     opal_object_t super;
     opal_event_t ev;
     opal_list_t *procs;
+    opal_list_t *eprocs;
     opal_list_t *info;
     opal_pmix_op_cbfunc_t cbfunc;
     void *cbdata;
@@ -160,6 +163,9 @@ extern int pmix_server_disconnect_fn(opal_list_t *procs, opal_list_t *info,
 extern int pmix_server_register_events_fn(opal_list_t *info,
                                           opal_pmix_op_cbfunc_t cbfunc,
                                           void *cbdata);
+extern int pmix_server_deregister_events_fn(opal_list_t *info,
+                                            opal_pmix_op_cbfunc_t cbfunc,
+                                            void *cbdata);
 
 /* declare the RML recv functions for responses */
 extern void pmix_server_launch_resp(int status, orte_process_name_t* sender,
@@ -169,6 +175,10 @@ extern void pmix_server_launch_resp(int status, orte_process_name_t* sender,
 extern void pmix_server_keyval_client(int status, orte_process_name_t* sender,
                                       opal_buffer_t *buffer,
                                       orte_rml_tag_t tg, void *cbdata);
+
+extern void pmix_server_notify(int status, orte_process_name_t* sender,
+                               opal_buffer_t *buffer,
+                               orte_rml_tag_t tg, void *cbdata);
 
 /* exposed shared variables */
 typedef struct {
@@ -181,6 +191,7 @@ typedef struct {
     char *server_uri;
     bool wait_for_server;
     orte_process_name_t server;
+    opal_list_t notifications;
 } pmix_server_globals_t;
 
 extern pmix_server_globals_t orte_pmix_server_globals;

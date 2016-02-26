@@ -15,7 +15,7 @@
  * Copyright (c) 2009      Institut National de Recherche en Informatique
  *                         et Automatique. All rights reserved.
  * Copyright (c) 2010      Oracle and/or its affiliates.  All rights reserved.
- * Copyright (c) 2013-2015 Intel, Inc. All rights reserved.
+ * Copyright (c) 2013-2016 Intel, Inc. All rights reserved.
  * Copyright (c) 2015      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
@@ -532,16 +532,14 @@ int orte_daemon(int argc, char *argv[])
         orte_node_t *node;
         orte_app_context_t *app;
         char *tmp, *nptr, *sysinfo;
-        int32_t ljob;
         char **singenv=NULL;
 
         /* setup the singleton's job */
         jdata = OBJ_NEW(orte_job_t);
         /* default to ompi for now */
-        jdata->personality = strdup("ompi");
+        opal_argv_append_nosize(&jdata->personality, "ompi");
         orte_plm_base_create_jobid(jdata);
-        ljob = ORTE_LOCAL_JOBID(jdata->jobid);
-        opal_pointer_array_set_item(orte_job_data, ljob, jdata);
+        opal_hash_table_set_value_uint32(orte_job_data, jdata->jobid, jdata);
 
         /* must create a map for it (even though it has no
          * info in it) so that the job info will be picked
