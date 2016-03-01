@@ -16,6 +16,7 @@ ddt_cuda_device_t *current_cuda_device;
 struct iovec cuda_iov[CUDA_NB_IOV];
 uint32_t cuda_iov_count;
 uint32_t cuda_iov_cache_enabled;
+ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
 
 //uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
@@ -242,6 +243,11 @@ int32_t opal_ddt_cuda_kernel_init(void)
         }
     }
     current_cuda_device = &(cuda_devices[0]);
+    
+    /* init cuda event list */
+    for (i = 0; i < MAX_CUDA_EVENTS; i++) {
+        cudaEventCreateWithFlags(&(cuda_event_free_list[i].cuda_event), cudaEventDisableTiming);
+    }
     
     /* init cuda_iov */
     cuda_iov_cache_enabled = 1;
@@ -759,6 +765,56 @@ void opal_ddt_cuda_set_cuda_stream()
 int32_t opal_ddt_cuda_get_cuda_stream()
 {
     return current_cuda_device->cuda_streams->current_stream_id;
+}
+
+void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc)
+{
+    *loc = 0;
+    return (void*)&(cuda_event_free_list[0]);
+}
+
+void opal_ddt_cuda_free_event(int32_t loc)
+{
+    return;
+}
+
+int32_t opal_ddt_cuda_event_query(void *cuda_event_list, int32_t i)
+{
+    ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
+    cudaError_t rv = cudaEventQuery(event_list[i].cuda_event);
+    if (rv == cudaSuccess) {
+        return 1;
+    } else if (rv == cudaErrorNotReady) {
+        return 0;
+    } else {
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda event query error.\n"); );
+        return -1;
+    }
+}
+
+int32_t opal_ddt_cuda_event_sync(void *cuda_event_list, int32_t i)
+{
+    ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
+    cudaError_t rv = cudaEventSynchronize(event_list[i].cuda_event);
+    if (rv == cudaSuccess) {
+        return 1;
+    } else {
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda event sync error.\n"); );
+        return -1;
+    }
+}
+
+int32_t opal_ddt_cuda_event_record(void *cuda_event_list, int32_t i)
+{
+    ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
+    cudaError_t rv = cudaEventRecord(event_list[i].cuda_event, cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
+    if (rv == cudaSuccess) {
+        return 1;
+    } else {
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda event record error.\n"); );
+        return -1;
+    }
 }
 
 void opal_dump_cuda_list(ddt_cuda_list_t *list)
