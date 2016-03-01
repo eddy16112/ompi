@@ -45,11 +45,17 @@
 #define UNROLL_16           16
 #define UNROLL_8            8
 #define UNROLL_4            4
+#define MAX_CUDA_EVENTS     16
 
 #define TIMER_DATA_TYPE struct timeval
 #define GET_TIME(TV)   gettimeofday( &(TV), NULL )
 #define ELAPSED_TIME(TSTART, TEND)  (((TEND).tv_sec - (TSTART).tv_sec) * 1000000 + ((TEND).tv_usec - (TSTART).tv_usec))
 
+
+typedef struct {
+    cudaEvent_t cuda_event;
+    int32_t event_type;
+} ddt_cuda_event_t;
 
 typedef struct {
     cudaStream_t ddt_cuda_stream[NB_STREAMS];
@@ -114,6 +120,7 @@ extern ddt_cuda_device_t *current_cuda_device;
 extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
+extern ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 

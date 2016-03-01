@@ -31,6 +31,11 @@ struct opal_datatype_cuda_kernel_function_table {
     void (*opal_ddt_cached_cuda_iov_fini_p)(void *cached_cuda_iov);
     void (*opal_ddt_cuda_set_cuda_stream_p)(void);
     int32_t (*opal_ddt_cuda_get_cuda_stream_p)(void);
+    void* (*opal_ddt_cuda_alloc_event_p)(int32_t nb_events, int32_t *loc);
+    void (*opal_ddt_cuda_free_event_p)(int32_t loc);
+    int32_t (*opal_ddt_cuda_event_query_p)(void *cuda_event_list, int32_t i);
+    int32_t (*opal_ddt_cuda_event_sync_p)(void *cuda_event_list, int32_t i);
+    int32_t (*opal_ddt_cuda_event_record_p)(void *cuda_event_list, int32_t i);
     int32_t (*opal_ddt_generic_simple_pack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
     int32_t (*opal_ddt_generic_simple_unpack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
     int32_t (*opal_ddt_generic_simple_pack_function_cuda_vector_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
@@ -49,6 +54,8 @@ void opal_cuda_set_copy_function_async(opal_convertor_t* convertor, void *stream
 
 int32_t opal_cuda_kernel_support_init(void);
 int32_t opal_cuda_kernel_support_fini(void);
+int32_t opal_cuda_sync_all_events(void *cuda_event_list, int32_t nb_events);
+
 int32_t opal_generic_simple_pack_function_cuda_iov( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
 int32_t opal_generic_simple_unpack_function_cuda_iov( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
 int32_t opal_generic_simple_pack_function_cuda_vector( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
@@ -61,5 +68,10 @@ void* opal_cached_cuda_iov_init(void);
 void opal_cached_cuda_iov_fini(void *cached_cuda_iov);
 void opal_cuda_set_cuda_stream(void);
 int32_t opal_cuda_get_cuda_stream(void);
+void* opal_cuda_alloc_event(int32_t nb_events, int32_t *loc);
+void opal_cuda_free_event(int32_t loc);
+int32_t opal_cuda_event_query(void *cuda_event_list, int32_t i);
+int32_t opal_cuda_event_sync(void *cuda_event_list, int32_t i);
+int32_t opal_cuda_event_record(void *cuda_event_list, int32_t i);
 
 #endif
