@@ -39,15 +39,20 @@
 #include "opal/datatype/opal_datatype_checksum.h"
 #include "opal/datatype/opal_datatype_unpack.h"
 #include "opal/datatype/opal_datatype_prototypes.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/datatype/opal_datatype_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 
 #if defined(CHECKSUM)
 #define opal_unpack_general_function            opal_unpack_general_checksum
 #define opal_unpack_homogeneous_contig_function opal_unpack_homogeneous_contig_checksum
 #define opal_generic_simple_unpack_function     opal_generic_simple_unpack_checksum
+#define opal_generic_simple_unpack_cuda_function     opal_generic_simple_unpack_cuda_checksum
 #else
 #define opal_unpack_general_function            opal_unpack_general
 #define opal_unpack_homogeneous_contig_function opal_unpack_homogeneous_contig
 #define opal_generic_simple_unpack_function     opal_generic_simple_unpack
+#define opal_generic_simple_unpack_cuda_function     opal_generic_simple_unpack_cuda
 #endif  /* defined(CHECKSUM) */
 
 
@@ -272,8 +277,9 @@ opal_generic_simple_unpack_function( opal_convertor_t* pConvertor,
     size_t iov_len_local;
     uint32_t iov_count;
 
+    printf("i am in simple unpack, max_data %lu, iov len %lu\n", *max_data, iov[0].iov_len);
     DO_DEBUG( opal_output( 0, "opal_convertor_generic_simple_unpack( %p, {%p, %lu}, %u )\n",
-                           (void*)pConvertor, iov[0].iov_base, (unsigned long)iov[0].iov_len, *out_size ); );
+                           (void*)pConvertor, iov[0].iov_base, (unsigned long)iov[0].iov_len, *out_size ); )                  
 
     description = pConvertor->use_desc->desc;
 
@@ -379,7 +385,7 @@ opal_generic_simple_unpack_function( opal_convertor_t* pConvertor,
             if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
                 OPAL_PTRDIFF_TYPE local_disp = (OPAL_PTRDIFF_TYPE)conv_ptr;
                 if( pElem->loop.common.flags & OPAL_DATATYPE_FLAG_CONTIGUOUS ) {
-                    UNPACK_CONTIGUOUS_LOOP( pConvertor, pElem, count_desc,
+                    UNPACK_CONTIGUOUS_LOOP( pConvertor, pElem, count_desc, 
                                             iov_ptr, conv_ptr, iov_len_local );
                     if( 0 == count_desc ) {  /* completed */
                         pos_desc += pElem->loop.items + 1;
@@ -408,6 +414,13 @@ opal_generic_simple_unpack_function( opal_convertor_t* pConvertor,
     *out_size = iov_count;
     if( pConvertor->bConverted == pConvertor->remote_size ) {
         pConvertor->flags |= CONVERTOR_COMPLETED;
+        printf("total unpacked %lu\n", pConvertor->bConverted);
+        // double *vtmp = (double *)iov[0].iov_base;
+        // for (uint32_t i = 0; i < total_unpacked/8; i++) {
+        //     printf(" %1.f ", *vtmp);
+        //     vtmp ++;
+        // }
+        // printf("\n");
         return 1;
     }
     /* Save the global position for the next round */
@@ -579,5 +592,29 @@ opal_unpack_general_function( opal_convertor_t* pConvertor,
                 conv_ptr - pConvertor->pBaseBuf );
     DO_DEBUG( opal_output( 0, "unpack save stack stack_pos %d pos_desc %d count_desc %d disp %ld\n",
                            pConvertor->stack_pos, pStack->index, (int)pStack->count, (long)pStack->disp ); );
+    return 0;
+}
+
+int32_t
+opal_generic_simple_unpack_cuda_function( opal_convertor_t* pConvertor,
+                                          struct iovec* iov, uint32_t* out_size,
+                                          size_t* max_data )
+{
+    dt_stack_t* pStack;
+    uint32_t pos_desc;
+    dt_elem_desc_t* description;
+    dt_elem_desc_t* pElem;
+    
+    description = pConvertor->use_desc->desc;
+    pStack = pConvertor->pStack + pConvertor->stack_pos;
+    pos_desc   = pStack->index;
+    pElem = &(description[pos_desc]);
+   
+    return opal_generic_simple_unpack_function_cuda_iov( pConvertor, iov, out_size, max_data);
+    if( OPAL_DATATYPE_LOOP == pElem->elem.common.type ) {
+        return opal_generic_simple_unpack_function_cuda_vector( pConvertor, iov, out_size, max_data);
+    } else {
+        return opal_generic_simple_unpack_function_cuda_iov( pConvertor, iov, out_size, max_data);
+    }
     return 0;
 }

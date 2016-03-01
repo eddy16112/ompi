@@ -1,6 +1,6 @@
 /* -*- Mode: C; c-basic-offset:4 ; -*- */
 /*
- * Copyright (c) 2004-2009 The University of Tennessee and The University
+ * Copyright (c) 2004-2015 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2009      Oak Ridge National Labs.  All rights reserved.
@@ -210,4 +210,58 @@ complete_loop:
     DO_DEBUG( opal_output( 0, "raw save stack stack_pos %d pos_desc %d count_desc %d disp %ld\n",
                            pConvertor->stack_pos, pStack->index, (int)pStack->count, (long)pStack->disp ); );
     return 0;
+}
+
+#define IOVEC_INITIAL_SIZE 64
+
+void
+opal_convertor_to_iov(struct opal_convertor_t *convertor,
+                      struct iovec **iov,
+                      uint32_t *iov_count,
+                      size_t *max_data)
+{
+    uint32_t temp_count = IOVEC_INITIAL_SIZE;
+    struct iovec *iovec;
+    size_t temp_data;
+
+    *iov_count = 0;
+    *max_data = 0;
+
+    *iov = iovec = (struct iovec*) malloc(temp_count * sizeof(struct iovec));
+    while(1) {
+        int ret = opal_convertor_raw(convertor, iovec, &temp_count, &temp_data);
+        *iov_count += temp_count;
+        *max_data += temp_data;
+        if(ret)
+            break;
+
+        *iov = (struct iovec*)realloc(*iov, (*iov_count + IOVEC_INITIAL_SIZE) * sizeof(struct iovec));
+        temp_count = IOVEC_INITIAL_SIZE;
+        iovec = &((*iov)[*iov_count]);
+    }
+}
+
+int opal_convertor_raw_cached(struct opal_convertor_t *convertor,
+                              const struct iovec **iov,
+                              uint32_t* iov_count)
+{
+    if( NULL == convertor->pDesc->cached_iovec ) {
+        struct opal_convertor_t conv;
+        size_t max_data;
+
+        OBJ_CONSTRUCT(&conv, opal_convertor_t);
+        conv.remoteArch = convertor->remoteArch;
+        conv.stack_pos  = 0;
+        conv.flags      = convertor->flags;
+        conv.master     = convertor->master;
+        opal_convertor_prepare_for_send(&conv, convertor->pDesc, 1, NULL);
+        opal_convertor_get_packed_size(&conv, &max_data);
+        opal_convertor_to_iov(&conv, (struct iovec **)&convertor->pDesc->cached_iovec,
+                              (uint32_t *)&convertor->pDesc->cached_iovec_count, &max_data);
+        OBJ_DESTRUCT(&conv);
+    }
+    *iov = convertor->pDesc->cached_iovec;
+    *iov_count = convertor->pDesc->cached_iovec_count;
+
+    return OPAL_SUCCESS;
 }

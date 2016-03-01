@@ -1638,6 +1638,60 @@ int progress_one_cuda_htod_event(struct mca_btl_base_descriptor_t **frag) {
     return 0;
 }
 
+int mca_common_cuda_create_event(uint64_t **event)
+{
+    CUresult result;
+
+    result = cuFunc.cuEventCreate((CUevent *)event, CU_EVENT_INTERPROCESS | CU_EVENT_DISABLE_TIMING);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+        opal_show_help("help-mpi-common-cuda.txt", "cuEventCreate failed",
+                       true, OPAL_PROC_MY_HOSTNAME, result);
+        return OPAL_ERROR;
+    }
+    return OPAL_SUCCESS;
+}
+
+int mca_common_cuda_record_event(uint64_t *event)
+{
+    CUresult result;
+    result = cuFunc.cuEventRecord((CUevent)event,0);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+        printf("record event error %d\n", result);
+        return OPAL_ERROR;
+    } else {
+        return OPAL_SUCCESS;
+    }
+}
+
+int mca_common_cuda_query_event(uint64_t *event)
+{
+    CUresult result;
+    result = cuFunc.cuEventQuery((CUevent)event);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS == result)) {
+        return OPAL_SUCCESS;
+    } else if (OPAL_UNLIKELY(CUDA_ERROR_NOT_READY == result)) {
+        return OPAL_ERROR;
+    } else {
+        printf("query event error %d\n", result);
+        return OPAL_ERROR;
+    }
+}
+
+int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_mpool_common_cuda_reg_data_t *handle)
+{
+    // CUipcEventHandle evtHandle;
+    // CUresult result;
+    // mca_mpool_common_cuda_reg_data_t *cuda_handle = (mca_mpool_common_cuda_reg_data_t*)handle;
+    // memcpy(&evtHandle, &cuda_handle->pipeline_evtHandle[n*EVTHANDLE_SIZE], sizeof(evtHandle));
+    // result = cuFunc.cuIpcOpenEventHandle((CUevent *)event, evtHandle);
+    // if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+    //     opal_show_help("help-mpi-common-cuda.txt", "cuIpcOpenEventHandle failed",
+    //                        true, result);
+    //     return OPAL_ERROR;
+    // }
+    return OPAL_SUCCESS;
+}
+
 
 /**
  * Need to make sure the handle we are retrieving from the cache is still
@@ -1846,7 +1900,9 @@ static int mca_common_cuda_is_gpu_buffer(const void *pUserBuf, opal_convertor_t 
     if (!stage_three_init_complete) {
         if (0 != mca_common_cuda_stage_three_init()) {
             opal_cuda_support = 0;
-        }
+        } else {
+	    opal_cuda_kernel_support_init();
+	}
     }
 
     return 1;
@@ -1999,6 +2055,19 @@ int mca_common_cuda_get_address_range(void *pbase, size_t *psize, void *base)
                             base, *(char **)pbase, *psize);
     }
     return 0;
+}
+
+int mca_common_cuda_memp2pcpy(void *dest, const void *src, size_t size)
+{
+    CUresult result;
+
+    result = cuFunc.cuMemcpy((CUdeviceptr)dest, (CUdeviceptr)src, size);
+    if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
+        opal_show_help("help-mpi-common-cuda.txt", "cuMemcpy failed",
+                        true, OPAL_PROC_MY_HOSTNAME, result);
+        return OPAL_ERROR;
+    }
+    return OPAL_SUCCESS;
 }
 
 #if OPAL_CUDA_GDR_SUPPORT

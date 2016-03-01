@@ -37,11 +37,24 @@
 #include "ompi/mca/bml/base/base.h"
 #include "ompi/memchecker.h"
 
+#include "opal/datatype/opal_datatype_cuda.h"
+#include "opal/mca/common/cuda/common_cuda.h"
+#include "opal/mca/btl/smcuda/btl_smcuda.h"
+
+#define CUDA_DDT_WITH_RDMA 1
+
 size_t mca_pml_ob1_rdma_cuda_btls(
     mca_bml_base_endpoint_t* bml_endpoint,
     unsigned char* base,
     size_t size,
     mca_pml_ob1_com_btl_t* rdma_btls);
+    
+int mca_pml_ob1_rdma_cuda_btl_register_data(
+    mca_pml_ob1_com_btl_t* rdma_btls, 
+    uint32_t num_btls_used, 
+    struct opal_convertor_t *pack_convertor, uint8_t pack_required, int32_t gpu_device);
+
+size_t mca_pml_ob1_rdma_cuda_avail(mca_bml_base_endpoint_t* bml_endpoint);
 
 int mca_pml_ob1_cuda_need_buffers(void * rreq,
                                   mca_btl_base_module_t* btl);
@@ -56,16 +69,18 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                         mca_bml_base_btl_t* bml_btl,
                                         size_t size) {
     int rc;
-#if OPAL_CUDA_GDR_SUPPORT
-    /* With some BTLs, switch to RNDV from RGET at large messages */
-    if ((sendreq->req_send.req_base.req_convertor.flags & CONVERTOR_CUDA) &&
-        (sendreq->req_send.req_bytes_packed > (bml_btl->btl->btl_cuda_rdma_limit - sizeof(mca_pml_ob1_hdr_t)))) {
-        return mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
-    }
-#endif /* OPAL_CUDA_GDR_SUPPORT */
+    int32_t local_device = 0;
 
     sendreq->req_send.req_base.req_convertor.flags &= ~CONVERTOR_CUDA;
+    struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
     if (opal_convertor_need_buffers(&sendreq->req_send.req_base.req_convertor) == false) {
+#if OPAL_CUDA_GDR_SUPPORT
+        /* With some BTLs, switch to RNDV from RGET at large messages */
+        if ((sendreq->req_send.req_bytes_packed > (bml_btl->btl->btl_cuda_rdma_limit - sizeof(mca_pml_ob1_hdr_t)))) {
+            sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
+            return mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+        }
+#endif /* OPAL_CUDA_GDR_SUPPORT */
         unsigned char *base;
         opal_convertor_get_current_pointer( &sendreq->req_send.req_base.req_convertor, (void**)&base );
         /* Set flag back */
@@ -75,6 +90,13 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                                                            base,
                                                                            sendreq->req_send.req_bytes_packed,
                                                                            sendreq->req_rdma))) {
+            
+            rc = mca_common_cuda_get_device(&local_device);
+            if (rc != 0) {
+                opal_output(0, "Failed to get the GPU device ID, rc= %d\n", rc);
+                return rc;
+            }                                                                   
+            mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, convertor, 0, local_device); 
             rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                      sendreq->req_send.req_bytes_packed);
             if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
@@ -92,7 +114,48 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
         /* Do not send anything with first rendezvous message as copying GPU
          * memory into RNDV message is expensive. */
         sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_CUDA;
-        rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+        if ((mca_pml_ob1_rdma_cuda_avail(sendreq->req_endpoint) != 0) && 
+            (opal_datatype_cuda_kernel_support == 1) && 
+            (bml_btl->btl->btl_cuda_ddt_allow_rdma == 1)) {
+            unsigned char *base;
+            size_t buffer_size = 0;
+            if (convertor->local_size > bml_btl->btl->btl_cuda_ddt_pipeline_size) {
+                buffer_size = bml_btl->btl->btl_cuda_ddt_pipeline_size * bml_btl->btl->btl_cuda_ddt_pipeline_depth;
+            } else {
+                buffer_size = convertor->local_size;
+            }
+            base = opal_cuda_malloc_gpu_buffer(buffer_size, 0);
+            convertor->gpu_buffer_ptr = base;
+            convertor->gpu_buffer_size = buffer_size;
+            sendreq->req_send.req_bytes_packed = convertor->local_size;
+            opal_output(0, "malloc GPU BUFFER %p for pack, local size %lu, pipeline size %lu, depth %d\n", base, convertor->local_size, bml_btl->btl->btl_cuda_ddt_pipeline_size, bml_btl->btl->btl_cuda_ddt_pipeline_depth);
+            if( 0 != (sendreq->req_rdma_cnt = (uint32_t)mca_pml_ob1_rdma_cuda_btls(
+                                                                           sendreq->req_endpoint,
+                                                                           base,
+                                                                           sendreq->req_send.req_bytes_packed,
+                                                                           sendreq->req_rdma))) {
+    
+                rc = mca_common_cuda_get_device(&local_device);
+                if (rc != 0) {
+                    opal_output(0, "Failed to get the GPU device ID, rc=%d\n", rc);
+                    return rc;
+                }
+                mca_pml_ob1_rdma_cuda_btl_register_data(sendreq->req_rdma, sendreq->req_rdma_cnt, convertor, 1, local_device); 
+    
+                rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
+                                                         sendreq->req_send.req_bytes_packed);
+    
+                if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
+                    mca_pml_ob1_free_rdma_resources(sendreq);
+                }
+            } else {
+                rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+            }
+
+            
+        } else {
+            rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
+        }
     }
     return rc;
 }
@@ -148,6 +211,61 @@ size_t mca_pml_ob1_rdma_cuda_btls(
 
     mca_pml_ob1_calc_weighted_length(rdma_btls, num_btls_used, size,
                                      weight_total);
+
+    return num_btls_used;
+}
+
+int mca_pml_ob1_rdma_cuda_btl_register_data(
+    mca_pml_ob1_com_btl_t* rdma_btls, 
+    uint32_t num_btls_used, 
+    struct opal_convertor_t *pack_convertor, uint8_t pack_required, int32_t gpu_device)
+{
+    uint32_t i;
+    for (i = 0; i < num_btls_used; i++) {
+        mca_btl_base_registration_handle_t *handle = rdma_btls[i].btl_reg;
+        mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t *)
+                ((intptr_t) handle - offsetof (mca_mpool_common_cuda_reg_t, data));
+      //   printf("base %p\n", cuda_reg->base.base);
+      //   for (j = 0; j < MAX_IPC_EVENT_HANDLE; j++) {
+      //       mca_common_cuda_geteventhandle(&convertor->pipeline_event[j], j, (mca_mpool_base_registration_t *)cuda_reg);
+      // //      printf("event %lu, j %d\n", convertor->pipeline_event[j], j);
+      //   }
+        cuda_reg->data.pack_required = pack_required;
+        cuda_reg->data.gpu_device = gpu_device;
+        cuda_reg->data.pack_convertor = pack_convertor;
+
+    }
+    return 0;
+}
+
+size_t mca_pml_ob1_rdma_cuda_avail(mca_bml_base_endpoint_t* bml_endpoint)
+{
+    int num_btls = mca_bml_base_btl_array_get_size(&bml_endpoint->btl_send);
+    double weight_total = 0;
+    int num_btls_used = 0, n;
+
+    /* shortcut when there are no rdma capable btls */
+    if(num_btls == 0) {
+        return 0;
+    }
+
+    /* check to see if memory is registered */
+    for(n = 0; n < num_btls && num_btls_used < mca_pml_ob1.max_rdma_per_request;
+            n++) {
+        mca_bml_base_btl_t* bml_btl =
+            mca_bml_base_btl_array_get_index(&bml_endpoint->btl_send, n);
+
+        if (bml_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET) {
+            weight_total += bml_btl->btl_weight;
+            num_btls_used++;
+        }
+    }
+
+    /* if we don't use leave_pinned and all BTLs that already have this memory
+ *      * registered amount to less then half of available bandwidth - fall back to
+ *           * pipeline protocol */
+    if(0 == num_btls_used || (!mca_pml_ob1.leave_pinned && weight_total < 0.5))
+        return 0;
 
     return num_btls_used;
 }

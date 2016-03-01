@@ -188,6 +188,9 @@ typedef uint8_t mca_btl_base_tag_t;
 #define MCA_BTL_TAG_IB                (MCA_BTL_TAG_BTL + 0)
 #define MCA_BTL_TAG_UDAPL             (MCA_BTL_TAG_BTL + 1)
 #define MCA_BTL_TAG_SMCUDA            (MCA_BTL_TAG_BTL + 2)
+#define MCA_BTL_TAG_SMCUDA_DATATYPE_UNPACK   (MCA_BTL_TAG_BTL + 3)
+#define MCA_BTL_TAG_SMCUDA_DATATYPE_PACK     (MCA_BTL_TAG_BTL + 4)
+#define MCA_BTL_TAG_SMCUDA_DATATYPE_PUT      (MCA_BTL_TAG_BTL + 5)
 
 /* prefered protocol */
 #define MCA_BTL_FLAGS_SEND            0x0001
@@ -1179,6 +1182,9 @@ struct mca_btl_base_module_t {
 #endif /* OPAL_CUDA_GDR_SUPPORT */
 #if OPAL_CUDA_SUPPORT
     size_t      btl_cuda_max_send_size;   /**< set if CUDA max send_size is different from host max send size */
+    int32_t     btl_cuda_ddt_allow_rdma;
+    size_t      btl_cuda_ddt_pipeline_size;
+    int32_t     btl_cuda_ddt_pipeline_depth;
 #endif /* OPAL_CUDA_SUPPORT */
 };
 typedef struct mca_btl_base_module_t mca_btl_base_module_t;

@@ -41,8 +41,8 @@ struct mca_mpool_gpusm_registration_t {
     uint64_t evtHandle[EVTHANDLE_SIZE]; /* CUipcEventHandle */
     uintptr_t event;                    /* CUevent */
 };
-typedef struct mca_mpool_gpusm_registration_t mca_mpool_gpusm_registration_t;
-OPAL_DECLSPEC OBJ_CLASS_DECLARATION(mca_mpool_gpusm_registration_t);
+typedef struct mca_mpool_gpusm_registration_t mca_mpool_gpusm_registration_t; 
+OPAL_DECLSPEC OBJ_CLASS_DECLARATION(mca_mpool_gpusm_registration_t); 
 
 struct mca_mpool_gpusm_component_t {
     mca_mpool_base_component_t super;
