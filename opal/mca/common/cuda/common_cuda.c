@@ -1485,7 +1485,11 @@ int mca_common_cuda_record_htod_event(char *msg, struct mca_btl_base_descriptor_
  * Used to get the dtoh stream for initiating asynchronous copies.
  */
 void *mca_common_cuda_get_dtoh_stream(void) {
-    return (void *)dtohStream;
+    if (dtohStream == NULL) {
+        return NULL;
+    } else {
+        return (void *)dtohStream;
+    }
 }
 
 /**

@@ -838,6 +838,9 @@ struct mca_btl_base_descriptor_t* mca_btl_smcuda_prepare_src(
     iov.iov_base =
         (IOVBASE_TYPE*)(((unsigned char*)(frag->segment.seg_addr.pval)) + reserve);
 
+    if (opal_datatype_cuda_kernel_support) {
+        convertor->flags &= ~CONVERTOR_CUDA_ASYNC;
+    }
     rc = opal_convertor_pack(convertor, &iov, &iov_count, &max_data );
     if( OPAL_UNLIKELY(rc < 0) ) {
         MCA_BTL_SMCUDA_FRAG_RETURN(frag);

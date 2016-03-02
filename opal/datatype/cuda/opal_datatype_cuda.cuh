@@ -131,6 +131,8 @@ int32_t opal_ddt_cuda_get_cuda_stream();
 
 void opal_ddt_cuda_sync_current_cuda_stream();
 
+void opal_ddt_cuda_set_outer_cuda_stream(void *stream);
+
 void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc);
 
 void opal_ddt_cuda_free_event(int32_t loc);
