@@ -3,8 +3,6 @@
 
 #include "opal_datatype_cuda_internal.cuh"
 #include "opal_datatype_cuda.cuh"
-#include <cuda_runtime_api.h>
-#include <cuda.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdarg.h> 
@@ -17,6 +15,7 @@ struct iovec cuda_iov[CUDA_NB_IOV];
 uint32_t cuda_iov_count;
 uint32_t cuda_iov_cache_enabled;
 ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
+cudaStream_t outer_stream;
 
 //uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
@@ -243,6 +242,7 @@ int32_t opal_ddt_cuda_kernel_init(void)
         }
     }
     current_cuda_device = &(cuda_devices[0]);
+    outer_stream = NULL;
     
     /* init cuda event list */
     for (i = 0; i < MAX_CUDA_EVENTS; i++) {
@@ -298,6 +298,7 @@ int32_t opal_ddt_cuda_kernel_fini(void)
         cudaEventDestroy(cuda_devices[i].memcpy_event);
     }
     current_cuda_device = NULL;
+    outer_stream = NULL;
     return OPAL_SUCCESS;
 }
 
@@ -372,7 +373,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     ddt_cuda_iov_total_cached_t* cached_cuda_iov = NULL;
     ddt_cuda_iov_dist_cached_t *cached_cuda_iov_dist_d = NULL;
     ddt_cuda_iov_dist_cached_t *cuda_iov_dist_h = NULL;
-    cudaStream_t *cuda_stream_iov = NULL;
+    cudaStream_t cuda_stream_iov = NULL;
     const struct iovec *ddt_iov = NULL;
     uint32_t ddt_iov_count = 0;
     size_t ncontig_disp_base;
@@ -397,7 +398,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
     cached_cuda_iov_nb_bytes_list_h = cached_cuda_iov->nb_bytes_h;
     nb_blocks_used = 0;
     cuda_iov_pipeline_block = current_cuda_device->cuda_iov_pipeline_block[0];
-    cuda_iov_pipeline_block->cuda_stream = &(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
+    cuda_iov_pipeline_block->cuda_stream = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
     cuda_iov_dist_h = cuda_iov_pipeline_block->cuda_iov_dist_cached_h;
     cuda_stream_iov = cuda_iov_pipeline_block->cuda_stream;
     thread_per_block = CUDA_WARP_SIZE * 64;
@@ -460,7 +461,7 @@ int32_t opal_ddt_cache_cuda_iov(opal_convertor_t* pConvertor, uint32_t *cuda_iov
         DT_CUDA_DEBUG ( opal_cuda_output(0, "Can not malloc cuda iov in GPU\n"););
         return OPAL_ERROR;
     }
-    cudaMemcpyAsync(cached_cuda_iov_dist_d, cuda_iov_dist_h, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, *cuda_stream_iov);
+    cudaMemcpyAsync(cached_cuda_iov_dist_d, cuda_iov_dist_h, sizeof(ddt_cuda_iov_dist_cached_t)*(nb_blocks_used+1), cudaMemcpyHostToDevice, cuda_stream_iov);
     cached_cuda_iov->cuda_iov_dist_d = cached_cuda_iov_dist_d;
     datatype->cached_cuda_iov = (unsigned char*)cached_cuda_iov;
     *cuda_iov_count = nb_blocks_used;
@@ -771,6 +772,11 @@ void opal_ddt_cuda_sync_current_cuda_stream()
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
     cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
+}
+
+void opal_ddt_cuda_set_outer_cuda_stream(void *stream)
+{
+    outer_stream = (cudaStream_t)stream;
 }
 
 void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc)

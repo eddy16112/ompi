@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sys/time.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 //#include "opal_datatype_orig_internal.h"
 
@@ -85,7 +87,7 @@ typedef struct {
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_h;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_d;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
-    cudaStream_t *cuda_stream;
+    cudaStream_t cuda_stream;
     cudaEvent_t cuda_event;
 } ddt_cuda_iov_pipeline_block_t;
 
@@ -121,6 +123,7 @@ extern struct iovec cuda_iov[CUDA_NB_IOV];
 extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
 extern ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
+extern cudaStream_t outer_stream; 
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
