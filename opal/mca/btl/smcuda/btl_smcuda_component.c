@@ -877,10 +877,11 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     send_msg.lindex = lindex;
     send_msg.pack_convertor = my_cuda_dt_clone->pack_convertor;
     struct opal_convertor_t *convertor = NULL;
+    cuda_ddt_smfrag_event_list_t *ddt_cuda_events = NULL;
     
     if (msg_type == CUDA_DDT_CLEANUP) {
-  //      cuda_ddt_smfrag_event_list_t *ddt_cuda_events = &(my_cuda_dt_clone->ddt_cuda_events);
-//        opal_cuda_sync_all_events(ddt_cuda_events->cuda_kernel_event_list, ddt_cuda_events->nb_events);
+       ddt_cuda_events = &(my_cuda_dt_clone->ddt_cuda_events);
+       opal_cuda_sync_all_events(ddt_cuda_events->cuda_kernel_event_list, ddt_cuda_events->nb_events);
         if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
             convertor = my_cuda_dt_clone->unpack_convertor;
             if (convertor->gpu_buffer_ptr != NULL) {
@@ -927,6 +928,12 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
             max_data = packed_size;
             iov.iov_len = packed_size;
             opal_convertor_unpack(convertor, &iov, &iov_count, &max_data );
+            if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
+                ddt_cuda_events = &(my_cuda_dt_clone->ddt_cuda_events);
+                opal_cuda_event_record(ddt_cuda_events->cuda_kernel_event_list, seq);
+            } else {
+                opal_cuda_sync_current_cuda_stream();
+            }
         }
         send_msg.seq = seq;
         if (msg_type == CUDA_DDT_COMPLETE) {

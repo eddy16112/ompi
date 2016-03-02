@@ -31,6 +31,7 @@ struct opal_datatype_cuda_kernel_function_table {
     void (*opal_ddt_cached_cuda_iov_fini_p)(void *cached_cuda_iov);
     void (*opal_ddt_cuda_set_cuda_stream_p)(void);
     int32_t (*opal_ddt_cuda_get_cuda_stream_p)(void);
+    void (*opal_ddt_cuda_sync_current_cuda_stream_p)(void);
     void* (*opal_ddt_cuda_alloc_event_p)(int32_t nb_events, int32_t *loc);
     void (*opal_ddt_cuda_free_event_p)(int32_t loc);
     int32_t (*opal_ddt_cuda_event_query_p)(void *cuda_event_list, int32_t i);
@@ -68,6 +69,7 @@ void* opal_cached_cuda_iov_init(void);
 void opal_cached_cuda_iov_fini(void *cached_cuda_iov);
 void opal_cuda_set_cuda_stream(void);
 int32_t opal_cuda_get_cuda_stream(void);
+void opal_cuda_sync_current_cuda_stream(void);
 void* opal_cuda_alloc_event(int32_t nb_events, int32_t *loc);
 void opal_cuda_free_event(int32_t loc);
 int32_t opal_cuda_event_query(void *cuda_event_list, int32_t i);
