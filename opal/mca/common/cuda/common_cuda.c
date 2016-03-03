@@ -173,6 +173,10 @@ struct mca_btl_base_descriptor_t **cuda_event_ipc_frag_array = NULL;
 struct mca_btl_base_descriptor_t **cuda_event_dtoh_frag_array = NULL;
 struct mca_btl_base_descriptor_t **cuda_event_htod_frag_array = NULL;
 
+/* Array of convertors currently being used by cuda async non-blocking
+ * operations */
+opal_convertor_t **cuda_event_dtoh_convertor_array = NULL;
+
 /* First free/available location in cuda_event_status_array */
 static int cuda_event_ipc_first_avail, cuda_event_dtoh_first_avail, cuda_event_htod_first_avail;
 
@@ -660,6 +664,15 @@ static int mca_common_cuda_stage_three_init(void)
             rc = OPAL_ERROR;
             goto cleanup_and_error;
         }
+        
+        cuda_event_dtoh_convertor_array = (opal_convertor_t **)
+            malloc(sizeof(opal_convertor_t *) * cuda_event_max);
+        if (NULL == cuda_event_dtoh_convertor_array) {
+            opal_show_help("help-mpi-common-cuda.txt", "No memory",
+                           true, OPAL_PROC_MY_HOSTNAME);
+            rc = OPAL_ERROR;
+            goto cleanup_and_error;
+        }
 
         /* Set up an array to store outstanding async htod events.  Used on the
          * receiving side for asynchronous copies. */
@@ -877,6 +890,9 @@ void mca_common_cuda_fini(void)
         }
         if (NULL != cuda_event_dtoh_frag_array) {
             free(cuda_event_dtoh_frag_array);
+        }
+        if (NULL != cuda_event_dtoh_convertor_array) {
+            free(cuda_event_dtoh_convertor_array);
         }
         if ((NULL != ipcStream) && ctx_ok) {
             cuFunc.cuStreamDestroy(ipcStream);
@@ -1390,7 +1406,7 @@ int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
  * Record an event and save the frag.  This is called by the sending side and
  * is used to queue an event when a htod copy has been initiated.
  */
-int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_t *frag)
+int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_t *frag, opal_convertor_t *convertor)
 {
     CUresult result;
 
@@ -1421,6 +1437,7 @@ int mca_common_cuda_record_dtoh_event(char *msg, struct mca_btl_base_descriptor_
         return OPAL_ERROR;
     }
     cuda_event_dtoh_frag_array[cuda_event_dtoh_first_avail] = frag;
+    cuda_event_dtoh_convertor_array[cuda_event_dtoh_first_avail] = convertor;
 
     /* Bump up the first available slot and number used by 1 */
     cuda_event_dtoh_first_avail++;
@@ -1551,7 +1568,7 @@ int progress_one_cuda_ipc_event(struct mca_btl_base_descriptor_t **frag) {
 /**
  * Progress any dtoh event completions.
  */
-int progress_one_cuda_dtoh_event(struct mca_btl_base_descriptor_t **frag) {
+int progress_one_cuda_dtoh_event(struct mca_btl_base_descriptor_t **frag, opal_convertor_t **convertor) {
     CUresult result;
 
     OPAL_THREAD_LOCK(&common_cuda_dtoh_lock);
@@ -1578,6 +1595,7 @@ int progress_one_cuda_dtoh_event(struct mca_btl_base_descriptor_t **frag) {
         }
 
         *frag = cuda_event_dtoh_frag_array[cuda_event_dtoh_first_used];
+        *convertor = cuda_event_dtoh_convertor_array[cuda_event_dtoh_first_used];
         opal_output_verbose(30, mca_common_cuda_output,
                             "CUDA: cuEventQuery returned %d", result);
 
