@@ -250,7 +250,9 @@ int32_t opal_cuda_kernel_support_init(void)
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_set_cuda_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_get_cuda_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_sync_current_cuda_stream );
+        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_sync_cuda_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_set_outer_cuda_stream );
+        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_set_callback_current_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_alloc_event );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_free_event );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_event_query );
@@ -284,7 +286,9 @@ int32_t opal_cuda_kernel_support_fini(void)
         cuda_kernel_table.opal_ddt_cached_cuda_iov_fini_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_set_cuda_stream_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_sync_current_cuda_stream_p = NULL;
+        cuda_kernel_table.opal_ddt_cuda_sync_cuda_stream_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_set_outer_cuda_stream_p = NULL;
+        cuda_kernel_table.opal_ddt_cuda_set_callback_current_stream_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_alloc_event_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_free_event_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_event_query_p = NULL;
@@ -426,12 +430,30 @@ void opal_cuda_sync_current_cuda_stream(void)
     }
 }
 
+void opal_cuda_sync_cuda_stream(int stream_id)
+{
+    if (cuda_kernel_table.opal_ddt_cuda_sync_cuda_stream_p != NULL) {
+        cuda_kernel_table.opal_ddt_cuda_sync_cuda_stream_p(stream_id);
+    } else {
+        opal_output(0, "opal_ddt_cuda_sync_cuda_stream function pointer is NULL\n");
+    }
+}
+
 void opal_cuda_set_outer_cuda_stream(void *stream)
 {
     if (cuda_kernel_table.opal_ddt_cuda_set_outer_cuda_stream_p != NULL) {
         cuda_kernel_table.opal_ddt_cuda_set_outer_cuda_stream_p(stream);
     } else {
         opal_output(0, "opal_ddt_cuda_set_outer_cuda_stream function pointer is NULL\n");
+    }
+}
+
+void opal_cuda_set_callback_current_stream(void *callback_func, void *callback_data)
+{
+    if (cuda_kernel_table.opal_ddt_cuda_set_callback_current_stream_p != NULL) {
+        cuda_kernel_table.opal_ddt_cuda_set_callback_current_stream_p(callback_func, callback_data);
+    } else {
+        opal_output(0, "opal_ddt_cuda_set_callback_current_stream function pointer is NULL\n");
     }
 }
 

@@ -19,6 +19,11 @@ cudaStream_t outer_stream;
 
 //uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
+static void cuda_stream_cudaback_warmup(cudaStream_t stream, cudaError_t status, void *data)
+{
+    DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda stream %d warm up is done\n", (size_t)data); );
+}
+
 
 static inline ddt_cuda_buffer_t* obj_ddt_cuda_buffer_new()
 {
@@ -220,6 +225,14 @@ int32_t opal_ddt_cuda_kernel_init(void)
         for (j = 0; j < NB_STREAMS; j++) {
             cudaStreamCreate(&(cuda_streams->ddt_cuda_stream[j]));
         }
+        
+        /* warm up call back */
+        for (j = 0; j < NB_STREAMS; j++) {
+            cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[j]);
+            cudaStreamAddCallback(cuda_streams->ddt_cuda_stream[j], cuda_stream_cudaback_warmup, (void *)j, 0);
+        }
+        cudaDeviceSynchronize();
+        
         cuda_streams->current_stream_id = 0;
         cuda_devices[i].cuda_streams = cuda_streams;
         cudaEventCreate(&(cuda_devices[i].memcpy_event), cudaEventDisableTiming);
@@ -774,9 +787,21 @@ void opal_ddt_cuda_sync_current_cuda_stream()
     cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id]);
 }
 
+void opal_ddt_cuda_sync_cuda_stream(int stream_id)
+{
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
+    cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[stream_id]);
+}
+
 void opal_ddt_cuda_set_outer_cuda_stream(void *stream)
 {
     outer_stream = (cudaStream_t)stream;
+}
+
+void opal_ddt_cuda_set_callback_current_stream(void *callback_func, void *callback_data)
+{
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
+    cudaStreamAddCallback(cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id], (cudaStreamCallback_t)callback_func, (void *)callback_data, 0);
 }
 
 void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc)
