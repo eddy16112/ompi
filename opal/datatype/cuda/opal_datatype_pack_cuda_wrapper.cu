@@ -1159,7 +1159,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
    // cuda_streams->current_stream_id = 0;
     destination_base = destination;
     thread_per_block = CUDA_WARP_SIZE * 8;
-    nb_blocks = 2;
+    nb_blocks = 64;
     source_base = (unsigned char*)pConvertor->pBaseBuf; 
     
     /* cuda iov is not cached, start to cache iov */
@@ -1236,7 +1236,7 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     pConvertor->current_cuda_iov_pos = pConvertor->current_cuda_iov_pos % cached_cuda_iov->cuda_iov_count;
 
     if (!(pConvertor->flags & CONVERTOR_CUDA_ASYNC)) { /* RMDA pack treat as SYNC */
-        cudaStreamSynchronize(cuda_stream_iov);
+//        cudaStreamSynchronize(cuda_stream_iov);
     }
 #if defined(OPAL_DATATYPE_CUDA_TIMING)    
     GET_TIME( end );

@@ -852,6 +852,24 @@ static void btl_smcuda_control(mca_btl_base_module_t* btl,
     }
 }
 
+static void btl_smcuda_datatype_pack_callback(void *stream, int32_t error, void *pack_callback_data)
+{
+    btl_smcuda_ddt_callback_t *cb_data = (btl_smcuda_ddt_callback_t *)pack_callback_data;
+    cuda_ddt_hdr_t *send_msg = &(cb_data->sig_msg);
+    printf("******************* I am in pack call back, seq %d\n", send_msg->seq);
+    mca_btl_smcuda_send_cuda_unpack_sig(cb_data->btl, cb_data->endpoint, send_msg);
+    free(cb_data);
+}
+
+static void btl_smcuda_datatype_unpack_callback(void *stream, int32_t error, void *unpack_callback_data)
+{
+    btl_smcuda_ddt_callback_t *cb_data = (btl_smcuda_ddt_callback_t *)unpack_callback_data;
+    cuda_ddt_hdr_t *send_msg = &(cb_data->sig_msg);
+    printf("******************* I am in unpack call back, seq %d\n", send_msg->seq);
+    mca_btl_smcuda_send_cuda_pack_sig(cb_data->btl, cb_data->endpoint, send_msg);
+    free(cb_data);
+}
+
 /* for receiver */
 static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
                                        mca_btl_base_tag_t tag,
@@ -867,6 +885,8 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     int msg_type = recv_msg.msg_type;
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
     cuda_ddt_clone_t *my_cuda_dt_clone;
+    btl_smcuda_ddt_callback_t *unpack_callback_data;
+    int sig_required = 1;
 
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
@@ -882,6 +902,9 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
     if (msg_type == CUDA_DDT_CLEANUP) {
        ddt_cuda_events = &(my_cuda_dt_clone->ddt_cuda_events);
        opal_cuda_sync_all_events(ddt_cuda_events->cuda_kernel_event_list, ddt_cuda_events->nb_events);
+       for (int i = 0; i < 4; i++) {
+           opal_cuda_sync_cuda_stream(i);
+       }
         if (!OPAL_DATATYPE_DIRECT_COPY_GPUMEM && my_cuda_dt_clone->remote_device != my_cuda_dt_clone->local_device) {
             convertor = my_cuda_dt_clone->unpack_convertor;
             if (convertor->gpu_buffer_ptr != NULL) {
@@ -899,6 +922,14 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
         struct iovec iov;
         uint32_t iov_count = 1;
         size_t max_data;
+        
+        send_msg.seq = seq;
+        if (msg_type == CUDA_DDT_COMPLETE) {
+            send_msg.msg_type = CUDA_DDT_COMPLETE_ACK;
+        } else {
+            send_msg.msg_type = CUDA_DDT_PACK_TO_BLOCK;
+        }
+        
         convertor = my_cuda_dt_clone->unpack_convertor;
         size_t pipeline_size = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
         convertor->flags &= ~CONVERTOR_CUDA;
@@ -920,6 +951,12 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
                 remote_address = (unsigned char*)my_cuda_dt_clone->remote_gpu_address + seq * pipeline_size;
                 opal_cuda_d2dcpy_async(local_address, remote_address, packed_size);
                 iov.iov_base = local_address;
+                unpack_callback_data = (btl_smcuda_ddt_callback_t *)malloc(sizeof(btl_smcuda_ddt_callback_t));
+                unpack_callback_data->btl = btl;
+                unpack_callback_data->endpoint = endpoint;
+                unpack_callback_data->sig_msg = send_msg;
+                sig_required = 0;
+                opal_cuda_set_callback_current_stream(btl_smcuda_datatype_unpack_callback, (void*)unpack_callback_data);
                 opal_output(0, "unpack, start D2D copy src %p, dst %p, size %lu, stream id %d, seq %d\n", remote_address, convertor->gpu_buffer_ptr, packed_size, opal_cuda_get_cuda_stream(), seq);        
             } else {
                 local_address = convertor->gpu_buffer_ptr + seq * pipeline_size;
@@ -935,13 +972,9 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
                 opal_cuda_sync_current_cuda_stream();
             }
         }
-        send_msg.seq = seq;
-        if (msg_type == CUDA_DDT_COMPLETE) {
-            send_msg.msg_type = CUDA_DDT_COMPLETE_ACK;
-        } else {
-            send_msg.msg_type = CUDA_DDT_PACK_TO_BLOCK;
+        if (sig_required) {
+            mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, &send_msg);
         }
-        mca_btl_smcuda_send_cuda_pack_sig(btl, endpoint, &send_msg);
     }
 }
 
@@ -961,8 +994,15 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
     mca_btl_smcuda_frag_t *frag = (mca_btl_smcuda_frag_t *)des;
     cuda_ddt_hdr_t send_msg;
     
+    btl_smcuda_ddt_callback_t *pack_callback_data;
+    
+ //   mca_pml_ob1_send_request_t* sendreq= (mca_pml_ob1_send_request_t*)des->cbdata;
+ //   struct opal_convertor_t *packconvertor = &(sendreq->req_send.req_base.req_convertor);
+ //   printf("++++++++++++++ pack convertor %p, received convertor %p\n", packconvertor, convertor);
+    
     /* We can find the endoint back from the rank embedded in the header */
     endpoint = mca_btl_smcuda_component.sm_peers[frag->hdr->my_smp_rank];
+    
     
     uint32_t iov_count = 1;
     int rv_dt = 0;
@@ -991,10 +1031,18 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             send_msg.seq = seq;
             if (rv_dt == 1) {
                 send_msg.msg_type = CUDA_DDT_COMPLETE;
+                for (int i = 0; i < 4; i++) {
+                    opal_cuda_sync_cuda_stream(i);
+                }
             } else {
                 send_msg.msg_type = CUDA_DDT_UNPACK_FROM_BLOCK;
             }
-            mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
+            pack_callback_data = (btl_smcuda_ddt_callback_t *)malloc(sizeof(btl_smcuda_ddt_callback_t));
+            pack_callback_data->btl = btl;
+            pack_callback_data->endpoint = endpoint;
+            pack_callback_data->sig_msg = send_msg;
+            opal_cuda_set_callback_current_stream(btl_smcuda_datatype_pack_callback, (void*)pack_callback_data);
+         //   mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
         }
     } else if (msg_type == CUDA_DDT_PACK_START) {
         struct iovec iov;
@@ -1010,10 +1058,18 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             send_msg.seq = seq;
             if (rv_dt == 1) {
                 send_msg.msg_type = CUDA_DDT_COMPLETE;
+                for (int i = 0; i < 4; i++) {
+                    opal_cuda_sync_cuda_stream(i);
+                }
             } else {
                 send_msg.msg_type = CUDA_DDT_UNPACK_FROM_BLOCK;
             }
-            mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
+            pack_callback_data = (btl_smcuda_ddt_callback_t *)malloc(sizeof(btl_smcuda_ddt_callback_t));
+            pack_callback_data->btl = btl;
+            pack_callback_data->endpoint = endpoint;
+            pack_callback_data->sig_msg = send_msg;
+            opal_cuda_set_callback_current_stream(btl_smcuda_datatype_pack_callback, (void*)pack_callback_data);
+      //      mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
             seq ++;
         }
     } else {

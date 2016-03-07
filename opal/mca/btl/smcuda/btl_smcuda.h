@@ -558,6 +558,12 @@ typedef struct {
     cuda_ddt_smfrag_event_list_t ddt_cuda_events;
 } cuda_ddt_clone_t;
 
+typedef struct {
+    mca_btl_base_module_t* btl;
+    struct mca_btl_base_endpoint_t *endpoint;
+    cuda_ddt_hdr_t sig_msg;
+} btl_smcuda_ddt_callback_t;
+
 #define SMCUDA_DT_CLONE_SIZE 20
 
 int mca_btl_smcuda_send_cuda_unpack_sig(struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t* endpoint, cuda_ddt_hdr_t *send_msg);
