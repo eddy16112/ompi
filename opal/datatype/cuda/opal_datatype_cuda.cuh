@@ -129,6 +129,8 @@ void opal_ddt_cuda_set_cuda_stream();
 
 int32_t opal_ddt_cuda_get_cuda_stream();
 
+void *opal_ddt_cuda_get_current_cuda_stream();
+
 void opal_ddt_cuda_sync_current_cuda_stream();
 
 void opal_ddt_cuda_sync_cuda_stream(int stream_id);

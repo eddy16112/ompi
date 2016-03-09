@@ -249,6 +249,7 @@ int32_t opal_cuda_kernel_support_init(void)
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cached_cuda_iov_fini );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_set_cuda_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_get_cuda_stream );
+        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_get_current_cuda_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_sync_current_cuda_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_sync_cuda_stream );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_set_outer_cuda_stream );
@@ -285,6 +286,8 @@ int32_t opal_cuda_kernel_support_fini(void)
         cuda_kernel_table.opal_ddt_cuda_d2dcpy_p = NULL;
         cuda_kernel_table.opal_ddt_cached_cuda_iov_fini_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_set_cuda_stream_p = NULL;
+        cuda_kernel_table.opal_ddt_cuda_get_cuda_stream_p = NULL;
+        cuda_kernel_table.opal_ddt_cuda_get_current_cuda_stream_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_sync_current_cuda_stream_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_sync_cuda_stream_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_set_outer_cuda_stream_p = NULL;
@@ -418,6 +421,16 @@ int32_t opal_cuda_get_cuda_stream(void)
     } else {
         opal_output(0, "opal_ddt_cuda_get_cuda_stream function pointer is NULL\n");
         return -2;
+    }
+}
+
+void* opal_cuda_get_current_cuda_stream(void)
+{
+    if (cuda_kernel_table.opal_ddt_cuda_get_current_cuda_stream_p != NULL) {
+        return cuda_kernel_table.opal_ddt_cuda_get_current_cuda_stream_p();
+    } else {
+        opal_output(0, "opal_ddt_cuda_get_current_cuda_stream function pointer is NULL\n");
+        return NULL;
     }
 }
 

@@ -870,6 +870,20 @@ static void btl_smcuda_datatype_unpack_callback(void *stream, int32_t error, voi
     free(cb_data);
 }
 
+static void btl_smcuda_datatype_pack_event_callback(btl_smcuda_ddt_callback_t *pack_callback_data)
+{
+    cuda_ddt_hdr_t *send_msg = &(pack_callback_data->sig_msg);
+    printf("******************* I am in pack event call back, seq %d\n", send_msg->seq);
+    mca_btl_smcuda_send_cuda_unpack_sig(pack_callback_data->btl, pack_callback_data->endpoint, send_msg);
+}
+
+static void btl_smcuda_datatype_unpack_event_callback(btl_smcuda_ddt_callback_t *unpack_callback_data)
+{
+    cuda_ddt_hdr_t *send_msg = &(unpack_callback_data->sig_msg);
+    printf("******************* I am in unpack event call back, seq %d\n", send_msg->seq);
+    mca_btl_smcuda_send_cuda_pack_sig(unpack_callback_data->btl, unpack_callback_data->endpoint, send_msg);
+}
+
 /* for receiver */
 static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
                                        mca_btl_base_tag_t tag,
@@ -956,7 +970,8 @@ static void btl_smcuda_datatype_unpack(mca_btl_base_module_t* btl,
                 unpack_callback_data->endpoint = endpoint;
                 unpack_callback_data->sig_msg = send_msg;
                 sig_required = 0;
-                opal_cuda_set_callback_current_stream(btl_smcuda_datatype_unpack_callback, (void*)unpack_callback_data);
+           //     opal_cuda_set_callback_current_stream(btl_smcuda_datatype_unpack_callback, (void*)unpack_callback_data);
+                mca_common_cuda_record_unpack_event(NULL, (void*)unpack_callback_data, opal_cuda_get_current_cuda_stream());
                 opal_output(0, "unpack, start D2D copy src %p, dst %p, size %lu, stream id %d, seq %d\n", remote_address, convertor->gpu_buffer_ptr, packed_size, opal_cuda_get_cuda_stream(), seq);        
             } else {
                 local_address = convertor->gpu_buffer_ptr + seq * pipeline_size;
@@ -1031,9 +1046,9 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             send_msg.seq = seq;
             if (rv_dt == 1) {
                 send_msg.msg_type = CUDA_DDT_COMPLETE;
-                for (int i = 0; i < 4; i++) {
-                    opal_cuda_sync_cuda_stream(i);
-                }
+                // for (int i = 0; i < 4; i++) {
+                //     opal_cuda_sync_cuda_stream(i);
+                // }
             } else {
                 send_msg.msg_type = CUDA_DDT_UNPACK_FROM_BLOCK;
             }
@@ -1041,7 +1056,8 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             pack_callback_data->btl = btl;
             pack_callback_data->endpoint = endpoint;
             pack_callback_data->sig_msg = send_msg;
-            opal_cuda_set_callback_current_stream(btl_smcuda_datatype_pack_callback, (void*)pack_callback_data);
+            mca_common_cuda_record_pack_event(NULL, (void*)pack_callback_data, opal_cuda_get_current_cuda_stream());
+       //     opal_cuda_set_callback_current_stream(btl_smcuda_datatype_pack_callback, (void*)pack_callback_data);
          //   mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
         }
     } else if (msg_type == CUDA_DDT_PACK_START) {
@@ -1058,9 +1074,9 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             send_msg.seq = seq;
             if (rv_dt == 1) {
                 send_msg.msg_type = CUDA_DDT_COMPLETE;
-                for (int i = 0; i < 4; i++) {
-                    opal_cuda_sync_cuda_stream(i);
-                }
+                // for (int i = 0; i < 4; i++) {
+                //     opal_cuda_sync_cuda_stream(i);
+                // }
             } else {
                 send_msg.msg_type = CUDA_DDT_UNPACK_FROM_BLOCK;
             }
@@ -1068,7 +1084,8 @@ static void btl_smcuda_datatype_pack(mca_btl_base_module_t* btl,
             pack_callback_data->btl = btl;
             pack_callback_data->endpoint = endpoint;
             pack_callback_data->sig_msg = send_msg;
-            opal_cuda_set_callback_current_stream(btl_smcuda_datatype_pack_callback, (void*)pack_callback_data);
+            mca_common_cuda_record_pack_event(NULL, (void*)pack_callback_data, opal_cuda_get_current_cuda_stream());
+        //    opal_cuda_set_callback_current_stream(btl_smcuda_datatype_pack_callback, (void*)pack_callback_data);
       //      mca_btl_smcuda_send_cuda_unpack_sig(btl, endpoint, &send_msg);
             seq ++;
         }
@@ -1329,6 +1346,25 @@ int mca_btl_smcuda_component_progress(void)
                 btl_smcuda_process_pending_sends(endpoint);
         }
     }
+    
+#if OPAL_CUDA_SUPPORT
+    /* Check to see if there are any outstanding CUDA pack events that have
+     * completed. */ 
+    btl_smcuda_ddt_callback_t *pack_callback_frag, *unpack_callback_frag;
+    while (1 == progress_one_cuda_pack_event((void **)&pack_callback_frag)) {
+        if (pack_callback_frag != NULL) {
+            btl_smcuda_datatype_pack_event_callback(pack_callback_frag);
+            free (pack_callback_frag);
+        }
+    }
+    
+    while (1 == progress_one_cuda_unpack_event((void **)&unpack_callback_frag)) {
+        if (unpack_callback_frag != NULL) {
+            btl_smcuda_datatype_unpack_event_callback(unpack_callback_frag);
+            free (unpack_callback_frag);
+        }
+    }
+#endif /* OPAL_CUDA_SUPPORT */
 
     /* poll each fifo */
     for(j = 0; j < FIFO_MAP_NUM(mca_btl_smcuda_component.num_smp_procs); j++) {

@@ -781,6 +781,12 @@ int32_t opal_ddt_cuda_get_cuda_stream()
     return current_cuda_device->cuda_streams->current_stream_id;
 }
 
+void *opal_ddt_cuda_get_current_cuda_stream()
+{
+    ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
+    return (void*)cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
+}
+
 void opal_ddt_cuda_sync_current_cuda_stream()
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
