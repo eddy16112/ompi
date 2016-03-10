@@ -852,7 +852,7 @@ int32_t opal_ddt_generic_simple_unpack_function_cuda_iov_cached( opal_convertor_
  //   cuda_streams->current_stream_id = 0;
     source_base = source;
     thread_per_block = CUDA_WARP_SIZE * 8;
-    nb_blocks = 64;
+    nb_blocks = 2;
     destination_base = (unsigned char*)pConvertor->pBaseBuf;
     
     /* cuda iov is not cached, start to cache iov */

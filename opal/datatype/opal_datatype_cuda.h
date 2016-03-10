@@ -29,7 +29,7 @@ struct opal_datatype_cuda_kernel_function_table {
     void (*opal_ddt_cuda_d2dcpy_async_p)(void* dst, const void* src, size_t count);
     void (*opal_ddt_cuda_d2dcpy_p)(void* dst, const void* src, size_t count);
     void (*opal_ddt_cached_cuda_iov_fini_p)(void *cached_cuda_iov);
-    void (*opal_ddt_cuda_set_cuda_stream_p)(void);
+    void (*opal_ddt_cuda_set_cuda_stream_p)(int stream_id);
     int32_t (*opal_ddt_cuda_get_cuda_stream_p)(void);
     void* (*opal_ddt_cuda_get_current_cuda_stream_p)(void);
     void (*opal_ddt_cuda_sync_current_cuda_stream_p)(void);
@@ -71,7 +71,7 @@ void opal_cuda_d2dcpy(void* dst, const void* src, size_t count);
 void opal_cuda_d2dcpy_async(void* dst, const void* src, size_t count);
 void* opal_cached_cuda_iov_init(void);
 void opal_cached_cuda_iov_fini(void *cached_cuda_iov);
-void opal_cuda_set_cuda_stream(void);
+void opal_cuda_set_cuda_stream(int stream_id);
 int32_t opal_cuda_get_cuda_stream(void);
 void* opal_cuda_get_current_cuda_stream(void);
 void opal_cuda_sync_current_cuda_stream(void);
