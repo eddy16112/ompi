@@ -405,10 +405,10 @@ void opal_cached_cuda_iov_fini(void *cached_cuda_iov)
     }
 }
 
-void opal_cuda_set_cuda_stream(void)
+void opal_cuda_set_cuda_stream(int stream_id)
 {
     if (cuda_kernel_table.opal_ddt_cuda_set_cuda_stream_p != NULL) {
-        cuda_kernel_table.opal_ddt_cuda_set_cuda_stream_p();
+        cuda_kernel_table.opal_ddt_cuda_set_cuda_stream_p(stream_id);
     } else {
         opal_output(0, "opal_ddt_cuda_set_cuda_stream function pointer is NULL\n");
     }
