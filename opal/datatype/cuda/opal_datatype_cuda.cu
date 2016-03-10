@@ -283,9 +283,13 @@ int32_t opal_ddt_cuda_kernel_fini(void)
         /* free gpu buffer */
         cudaFree(cuda_devices[i].gpu_buffer);   
         /* destory cuda stream and iov*/
-        ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
         for (j = 0; j < NB_STREAMS; j++) {
             cudaStreamDestroy(cuda_devices[i].cuda_streams->ddt_cuda_stream[j]);
+        }
+        free(cuda_devices[i].cuda_streams);
+        
+        ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
+        for (j = 0; j < NB_PIPELINE_BLOCKS; j++) {
             cuda_iov_pipeline_block = cuda_devices[i].cuda_iov_pipeline_block[j];
             if (cuda_iov_pipeline_block != NULL) {
                 if (cuda_iov_pipeline_block->cuda_iov_dist_non_cached_h != NULL) {
@@ -306,7 +310,6 @@ int32_t opal_ddt_cuda_kernel_fini(void)
                 cuda_iov_pipeline_block = NULL;
             }
         }
-        free(cuda_devices[i].cuda_streams);
         cuda_devices[i].cuda_streams = NULL;
         cudaEventDestroy(cuda_devices[i].memcpy_event);
     }
@@ -769,11 +772,10 @@ void opal_ddt_cuda_d2dcpy(void* dst, const void* src, size_t count)
     cudaStreamSynchronize(current_cuda_device->cuda_streams->ddt_cuda_stream[current_cuda_device->cuda_streams->current_stream_id]);
 }
 
-void opal_ddt_cuda_set_cuda_stream()
+void opal_ddt_cuda_set_cuda_stream(int stream_id)
 {
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
-    cuda_streams->current_stream_id ++;
-    cuda_streams->current_stream_id = cuda_streams->current_stream_id & (NB_STREAMS-1);
+    cuda_streams->current_stream_id = stream_id;
 }
 
 int32_t opal_ddt_cuda_get_cuda_stream()
