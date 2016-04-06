@@ -38,9 +38,9 @@ struct mca_mpool_common_cuda_reg_data_t {
     uint64_t event;
     opal_ptr_t memh_seg_addr;
     size_t memh_seg_len;
-    uint8_t pack_required;
+    uint8_t pack_unpack_required;
     int32_t gpu_device;
-    struct opal_convertor_t *pack_convertor;
+    struct opal_convertor_t *convertor;
 };
 typedef struct mca_mpool_common_cuda_reg_data_t mca_mpool_common_cuda_reg_data_t;
 
