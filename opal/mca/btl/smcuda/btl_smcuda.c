@@ -74,10 +74,6 @@
 #include "btl_smcuda_frag.h"
 #include "btl_smcuda_fifo.h"
 
-#include "ompi/mca/bml/bml.h"
-#include "ompi/mca/pml/ob1/pml_ob1_rdmafrag.h"
-#include "ompi/mca/pml/base/pml_base_request.h"
-
 #if OPAL_CUDA_SUPPORT
 static struct mca_btl_base_registration_handle_t *mca_btl_smcuda_register_mem (
     struct mca_btl_base_module_t* btl, struct mca_btl_base_endpoint_t *endpoint, void *base,
@@ -1184,14 +1180,10 @@ int mca_btl_smcuda_get_cuda (struct mca_btl_base_module_t *btl,
     mca_common_wait_stream_synchronize(&rget_reg);
     
     /* datatype RDMA */
-    mca_pml_ob1_rdma_frag_t *frag_ob1 = cbdata;
-    mca_bml_base_btl_t *bml_btl = frag_ob1->rdma_bml;
-    mca_pml_base_request_t *req = (mca_pml_base_request_t*) frag_ob1->rdma_req;
     opal_convertor_t* unpack_convertor = local_handle->reg_data.convertor;
     uint8_t unpack_required = local_handle->reg_data.pack_unpack_required;
 
-    if ((unpack_convertor->flags & CONVERTOR_CUDA) &&
-        (bml_btl->btl_flags & MCA_BTL_FLAGS_CUDA_GET)) {
+    if (unpack_convertor->flags & CONVERTOR_CUDA) {
         uint8_t pack_required = remote_handle->reg_data.pack_unpack_required;
         int lindex = -1;
         int remote_device = remote_handle->reg_data.gpu_device;
