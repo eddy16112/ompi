@@ -19,11 +19,6 @@ cudaStream_t outer_stream;
 
 //uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
-static void cuda_stream_cudaback_warmup(cudaStream_t stream, cudaError_t status, void *data)
-{
-    DT_CUDA_DEBUG( opal_cuda_output( 0, "cuda stream %d warm up is done\n", (size_t)data); );
-}
-
 
 static inline ddt_cuda_buffer_t* obj_ddt_cuda_buffer_new()
 {
@@ -229,7 +224,6 @@ int32_t opal_ddt_cuda_kernel_init(void)
         /* warm up call back */
         for (j = 0; j < NB_STREAMS; j++) {
             cudaStreamSynchronize(cuda_streams->ddt_cuda_stream[j]);
-            cudaStreamAddCallback(cuda_streams->ddt_cuda_stream[j], cuda_stream_cudaback_warmup, (void *)j, 0);
         }
         cudaDeviceSynchronize();
         
@@ -257,6 +251,10 @@ int32_t opal_ddt_cuda_kernel_init(void)
     current_cuda_device = &(cuda_devices[0]);
     outer_stream = NULL;
     
+#if defined(OPAL_DATATYPE_CUDA_TIMING)
+    TIMER_DATA_TYPE start, end, start_total, end_total;
+    long total_time;
+#endif
     /* init cuda event list */
     for (i = 0; i < MAX_CUDA_EVENTS; i++) {
         cudaEventCreateWithFlags(&(cuda_event_free_list[i].cuda_event), cudaEventDisableTiming);
@@ -814,12 +812,24 @@ void opal_ddt_cuda_set_callback_current_stream(void *callback_func, void *callba
 
 void* opal_ddt_cuda_alloc_event(int32_t nb_events, int32_t *loc)
 {
+    int i;
     *loc = 0;
-    return (void*)&(cuda_event_free_list[0]);
+    //return (void*)&(cuda_event_free_list[0]);
+    ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)malloc(sizeof(ddt_cuda_event_t) * nb_events);
+    for (i = 0; i < nb_events; i++) {
+        cudaEventCreateWithFlags(&(event_list[i].cuda_event), cudaEventDisableTiming);
+    }
+    return (void*)event_list;
 }
 
-void opal_ddt_cuda_free_event(int32_t loc)
+void opal_ddt_cuda_free_event(void *cuda_event_list, int32_t nb_events)
 {
+    ddt_cuda_event_t *event_list = (ddt_cuda_event_t *)cuda_event_list;
+    int i;
+    for (i = 0; i < nb_events; i++) {
+        cudaEventDestroy(event_list[i].cuda_event);
+    }
+    free (event_list);
     return;
 }
 
