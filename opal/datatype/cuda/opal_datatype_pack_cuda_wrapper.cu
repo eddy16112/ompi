@@ -1139,7 +1139,6 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     uint8_t buffer_isfull = 0;
     cudaError_t cuda_err;
     ddt_cuda_stream_t *cuda_streams = current_cuda_device->cuda_streams;
-    ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block = NULL;
     cudaStream_t cuda_stream_iov = NULL;
     uint32_t cuda_iov_start_pos, cuda_iov_end_pos;
     ddt_cuda_iov_total_cached_t* cached_cuda_iov = NULL;
@@ -1192,13 +1191,11 @@ int32_t opal_ddt_generic_simple_pack_function_cuda_iov_cached( opal_convertor_t*
     cuda_iov_start_pos = pConvertor->current_cuda_iov_pos;
     cuda_iov_end_pos = cached_cuda_iov_count;
     nb_blocks_used = 0;
-    cuda_iov_pipeline_block = current_cuda_device->cuda_iov_pipeline_block[0];
     if (outer_stream == NULL) {
-        cuda_iov_pipeline_block->cuda_stream = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
+        cuda_stream_iov = cuda_streams->ddt_cuda_stream[cuda_streams->current_stream_id];
     } else {
-        cuda_iov_pipeline_block->cuda_stream = outer_stream;
+        cuda_stream_iov = outer_stream;
     }
-    cuda_stream_iov = cuda_iov_pipeline_block->cuda_stream;
     convertor_current_count = pConvertor->current_count;
    
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
