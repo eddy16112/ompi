@@ -34,6 +34,7 @@
 #define TASK_PER_THREAD     2
 #define NB_STREAMS          8
 #define NB_PIPELINE_BLOCKS  4
+#define NB_CACHED_BLOCKS    4
 #define CUDA_NB_IOV         1024*20
 #define CUDA_IOV_LEN        1024*1204
 #define CUDA_MAX_NB_BLOCKS  1024
@@ -119,6 +120,7 @@ typedef struct {
     ddt_cuda_stream_t *cuda_streams;
     ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block[NB_PIPELINE_BLOCKS];
     ddt_cuda_iov_process_block_cached_t *cuda_iov_process_block_cached[NB_PIPELINE_BLOCKS];
+    uint32_t cuda_iov_process_block_cached_first_avail;
     cudaEvent_t memcpy_event;
 } ddt_cuda_device_t;
 
