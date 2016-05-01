@@ -86,10 +86,15 @@ typedef struct {
 typedef struct {
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_h;
     ddt_cuda_iov_dist_cached_t* cuda_iov_dist_non_cached_d;
-    ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
     cudaStream_t cuda_stream;
     cudaEvent_t cuda_event;
 } ddt_cuda_iov_pipeline_block_t;
+
+typedef struct {
+    ddt_cuda_iov_dist_cached_t* cuda_iov_dist_cached_h;
+    cudaStream_t cuda_stream;
+    cudaEvent_t cuda_event;
+} ddt_cuda_iov_process_block_cached_t;
 
 typedef struct ddt_cuda_buffer{
     unsigned char* gpu_addr;
@@ -113,6 +118,7 @@ typedef struct {
     size_t buffer_used_size;
     ddt_cuda_stream_t *cuda_streams;
     ddt_cuda_iov_pipeline_block_t *cuda_iov_pipeline_block[NB_PIPELINE_BLOCKS];
+    ddt_cuda_iov_process_block_cached_t *cuda_iov_process_block_cached[NB_PIPELINE_BLOCKS];
     cudaEvent_t memcpy_event;
 } ddt_cuda_device_t;
 
