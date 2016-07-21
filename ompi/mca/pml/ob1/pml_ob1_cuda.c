@@ -70,7 +70,7 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                                         mca_bml_base_btl_t* bml_btl,
                                         size_t size) {
     int rc;
-
+    
     sendreq->req_send.req_base.req_convertor.flags &= ~CONVERTOR_CUDA;
     struct opal_convertor_t *convertor = &(sendreq->req_send.req_base.req_convertor);
     if (opal_convertor_need_buffers(&sendreq->req_send.req_base.req_convertor) == false) {
