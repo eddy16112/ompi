@@ -517,6 +517,10 @@ static int mca_common_cuda_stage_two_init(opal_common_cuda_function_table_t *fta
     ftable->gpu_cu_memcpy_async = &mca_common_cuda_cu_memcpy_async;
     ftable->gpu_cu_memcpy = &mca_common_cuda_cu_memcpy;
     ftable->gpu_memmove = &mca_common_cuda_memmove;
+    
+    if (OPAL_SUCCESS != opal_cuda_kernel_support_init()) {
+        opal_cuda_kernel_support_fini();    
+    }
 
     opal_output_verbose(30, mca_common_cuda_output,
                         "CUDA: support functions initialized");
@@ -594,6 +598,7 @@ static int mca_common_cuda_stage_three_init(void)
          * value.  Normally, that is 1, but the user can override it to disable
          * registration of the internal buffers. */
         mca_common_cuda_enabled = true;
+        printf("cuda enabled\n");
         opal_output_verbose(20, mca_common_cuda_output,
                             "CUDA: cuCtxGetCurrent succeeded");
     }
@@ -2226,8 +2231,10 @@ static int mca_common_cuda_is_gpu_buffer(const void *pUserBuf, opal_convertor_t 
         if (0 != mca_common_cuda_stage_three_init()) {
             opal_cuda_support = 0;
         } else {
-	    opal_cuda_kernel_support_init();
-	}
+            if (OPAL_SUCCESS != opal_cuda_kernel_support_init()) {
+                opal_cuda_kernel_support_fini();    
+            }
+	    }
     }
 
     return 1;

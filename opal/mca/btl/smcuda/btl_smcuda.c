@@ -1074,7 +1074,7 @@ static int mca_btl_smcuda_register_convertor (struct mca_btl_base_module_t* btl,
                                               struct mca_btl_base_registration_handle_t *handle,
                                               struct opal_convertor_t *convertor)
 {
- //   printf("Hello, i register convertor, %p\n", (void*)convertor);
+    printf("Hello, i register convertor, %p\n", (void*)convertor);
     mca_mpool_common_cuda_reg_t *cuda_reg = (mca_mpool_common_cuda_reg_t *)((intptr_t) handle - offsetof (mca_mpool_common_cuda_reg_t, data));
     
     int32_t local_device = 0;
