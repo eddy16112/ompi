@@ -21,6 +21,7 @@
 #define OPAL_DATATYPE_VECTOR_USE_PIPELINE   0
 #define OPAL_DATATYPE_VECTOR_USE_MEMCPY2D_AS_KERNEL   0
 #define OPAL_DATATYPE_CUDA_IOV_CACHE    1
+#define OPAL_DATATYPE_USE_CUBLAS        1
 #define OPAL_DATATYPE_IOV_UNIFIED_MEM	0
 
 
@@ -54,6 +55,10 @@
 #define GET_TIME(TV)   gettimeofday( &(TV), NULL )
 #define ELAPSED_TIME(TSTART, TEND)  (((TEND).tv_sec - (TSTART).tv_sec) * 1000000 + ((TEND).tv_usec - (TSTART).tv_usec))
 
+
+#if defined(OPAL_DATATYPE_USE_CUBLAS)
+#include <cublas_v2.h>
+#endif
 
 typedef struct {
     cudaEvent_t cuda_event;
@@ -133,6 +138,11 @@ extern uint32_t cuda_iov_count;
 extern uint32_t cuda_iov_cache_enabled;
 extern ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
 extern cudaStream_t outer_stream; 
+
+#if defined(OPAL_DATATYPE_USE_CUBLAS)
+extern cudaStream_t cublas_stream; 
+extern cublasHandle_t cublas_handle;
+#endif
 
 //extern uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 

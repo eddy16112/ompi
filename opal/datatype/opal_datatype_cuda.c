@@ -259,6 +259,7 @@ int32_t opal_cuda_kernel_support_init(void)
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_event_query );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_event_sync );
         OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_ddt_cuda_event_record );
+        OPAL_DATATYPE_FIND_CUDA_KERNEL_FUNCTION_OR_RETURN( opal_datatype_cuda_kernel_handle, opal_recude_op_sum_double );
         
         if (OPAL_SUCCESS != cuda_kernel_table.opal_ddt_cuda_kernel_init_p()) {
             return OPAL_ERROR;
@@ -297,6 +298,7 @@ int32_t opal_cuda_kernel_support_fini(void)
         cuda_kernel_table.opal_ddt_cuda_event_query_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_event_sync_p = NULL;
         cuda_kernel_table.opal_ddt_cuda_event_record_p = NULL;
+        cuda_kernel_table.opal_recude_op_sum_double_p = NULL;
 
         dlclose(opal_datatype_cuda_kernel_handle);
         opal_datatype_cuda_kernel_handle = NULL;
@@ -515,6 +517,16 @@ int32_t opal_cuda_event_record(void *cuda_event_list, int32_t i)
         return cuda_kernel_table.opal_ddt_cuda_event_record_p(cuda_event_list, i);
     } else {
         opal_output(0, "opal_ddt_cuda_event_record function pointer is NULL\n");
+        return -2;
+    }
+}
+
+int32_t opal_cuda_recude_op_sum_double(void *source, void *target, int count)
+{
+    if (cuda_kernel_table.opal_recude_op_sum_double_p != NULL) {
+        return cuda_kernel_table.opal_recude_op_sum_double_p(source, target, count);
+    } else {
+        opal_output(0, "opal_recude_op_sum_double function pointer is NULL\n");
         return -2;
     }
 }

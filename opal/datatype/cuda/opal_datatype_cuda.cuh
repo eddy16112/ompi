@@ -149,6 +149,8 @@ int32_t opal_ddt_cuda_event_sync(void *cuda_event_list, int32_t i);
 
 int32_t opal_ddt_cuda_event_record(void *cuda_event_list, int32_t i);
 
+int32_t opal_recude_op_sum_double(void *source, void *target, int count);
+
 }
                             
 #endif  /* OPAL_DATATYPE_CUDA_H_HAS_BEEN_INCLUDED */

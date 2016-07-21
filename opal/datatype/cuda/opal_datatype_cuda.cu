@@ -17,6 +17,11 @@ uint32_t cuda_iov_cache_enabled;
 ddt_cuda_event_t cuda_event_free_list[MAX_CUDA_EVENTS];
 cudaStream_t outer_stream;
 
+#if defined(OPAL_DATATYPE_USE_CUBLAS)
+cudaStream_t cublas_stream; 
+cublasHandle_t cublas_handle;
+#endif
+
 //uint8_t ALIGNMENT_DOUBLE, ALIGNMENT_FLOAT, ALIGNMENT_CHAR;
 
 
@@ -291,6 +296,16 @@ int32_t opal_ddt_cuda_kernel_init(void)
     // ALIGNMENT_FLOAT = sizeof(float);
     // ALIGNMENT_CHAR = sizeof(char);
     
+#if defined(OPAL_DATATYPE_USE_CUBLAS)
+    cublasStatus_t stat;
+    stat = cublasCreate(&cublas_handle); 
+    if (stat != CUBLAS_STATUS_SUCCESS) { 
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "CUBLAS initialization failed\n"); );
+        return OPAL_ERROR; 
+    }
+    cudaStreamCreate(&cublas_stream);
+#endif
+    
     cudaDeviceSynchronize();
     return OPAL_SUCCESS;
 }
@@ -354,6 +369,13 @@ int32_t opal_ddt_cuda_kernel_fini(void)
     }
     current_cuda_device = NULL;
     outer_stream = NULL;
+    
+#if defined(OPAL_DATATYPE_USE_CUBLAS)
+    cublasDestroy(cublas_handle);
+    cudaStreamDestroy(cublas_stream);
+    cublas_stream = NULL;
+#endif
+    
     return OPAL_SUCCESS;
 }
 
@@ -936,4 +958,31 @@ void opal_dump_cuda_list(ddt_cuda_list_t *list)
         DT_CUDA_DEBUG( opal_cuda_output( 2, "\titem addr %p, size %ld.\n", ptr->gpu_addr, ptr->size); );
         ptr = ptr->next;
     }
+}
+
+int32_t opal_recude_op_sum_double(void *source, void *target, int count)
+{
+#if defined(OPAL_DATATYPE_CUDA_TIMING)
+    TIMER_DATA_TYPE start, end, start_total, end_total;
+    long total_time;
+#endif
+    double alpha = 1;
+    cublasStatus_t stat;
+
+#if defined(OPAL_DATATYPE_CUDA_TIMING)
+    GET_TIME(start);
+#endif
+    cublasSetStream(cublas_handle, cublas_stream);
+    stat = cublasDaxpy(cublas_handle, count, &alpha, (const double *)source, 1, (double *)target, 1);
+    if (stat != CUBLAS_STATUS_SUCCESS) { 
+        DT_CUDA_DEBUG( opal_cuda_output( 0, "cublasDaxpy error.\n"); );
+        return -1; 
+    }
+    cudaStreamSynchronize(cublas_stream);
+#if defined(OPAL_DATATYPE_CUDA_TIMING) 
+    GET_TIME( end );
+    total_time = ELAPSED_TIME( start, end );
+    DT_CUDA_DEBUG( opal_cuda_output( 2, "[Timing]: cublasDaxpy in %ld microsec\n", total_time ); );
+#endif
+    return 1;
 }

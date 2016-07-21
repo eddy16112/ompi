@@ -40,6 +40,7 @@ mca_coll_cuda_reduce(const void *sbuf, void *rbuf, int count,
     size_t bufsize;
     int rc;
 
+    printf("i am in cuda reduce, sbuf %p, rbuf %p\n", sbuf, rbuf);
     bufsize = opal_datatype_span(&dtype->super, count, &gap);
 
 
