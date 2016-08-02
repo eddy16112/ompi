@@ -39,7 +39,7 @@
 
 #include "opal/datatype/opal_datatype_cuda.h"
 #include "opal/mca/common/cuda/common_cuda.h"
-#include "opal/mca/btl/smcuda/btl_smcuda.h"
+//#include "opal/mca/btl/smcuda/btl_smcuda.h"
 
 #define CUDA_DDT_WITH_RDMA 1
 

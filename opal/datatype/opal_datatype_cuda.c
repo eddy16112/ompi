@@ -521,10 +521,10 @@ int32_t opal_cuda_event_record(void *cuda_event_list, int32_t i)
     }
 }
 
-int32_t opal_cuda_recude_op_sum_double(void *source, void *target, int count)
+int32_t opal_cuda_recude_op_sum_double(void *source, void *target, int count, void *cublas_outer_stream)
 {
     if (cuda_kernel_table.opal_recude_op_sum_double_p != NULL) {
-        return cuda_kernel_table.opal_recude_op_sum_double_p(source, target, count);
+        return cuda_kernel_table.opal_recude_op_sum_double_p(source, target, count, cublas_outer_stream);
     } else {
         opal_output(0, "opal_recude_op_sum_double function pointer is NULL\n");
         return -2;

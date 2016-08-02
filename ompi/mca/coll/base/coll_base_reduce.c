@@ -193,7 +193,7 @@ int ompi_coll_base_reduce_generic( const void* sendbuf, void* recvbuf, int origi
                         }
                     }
                     /* apply operation */
-                    opal_cuda_recude_op_sum_double(local_op_buffer, accumbuf + (ptrdiff_t)segindex * (ptrdiff_t)segment_increment, recvcount);
+                    opal_cuda_recude_op_sum_double(local_op_buffer, accumbuf + (ptrdiff_t)segindex * (ptrdiff_t)segment_increment, recvcount, NULL);
              /*       ompi_datatype_type_size(datatype, &ddt_size);
                     char *tmp1 = (char*)malloc(recvcount * ddt_size);
                     char *tmp2 = (char*)malloc(recvcount * ddt_size);
@@ -215,7 +215,7 @@ int ompi_coll_base_reduce_generic( const void* sendbuf, void* recvbuf, int origi
                             local_op_buffer = sendtmpbuf + (ptrdiff_t)(segindex-1) * (ptrdiff_t)segment_increment;
                         }
                     }
-                    opal_cuda_recude_op_sum_double(local_op_buffer, accumulator, prevcount);
+                    opal_cuda_recude_op_sum_double(local_op_buffer, accumulator, prevcount, NULL);
             /*        ompi_datatype_type_size(datatype, &ddt_size);
                     char *tmp3 = (char*)malloc(prevcount * ddt_size);
                     char *tmp4 = (char*)malloc(prevcount * ddt_size);
