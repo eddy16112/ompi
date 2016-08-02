@@ -33,6 +33,9 @@ ompidir = $(ompiincludedir)/$(subdir)
 nobase_ompi_HEADERS = $(headers)
 endif
 
+libmca_coll_la_LIBADD = \
+    $(OMPI_TOP_BUILDDIR)/opal/mca/common/cuda/lib@OPAL_LIB_PREFIX@mca_common_cuda.la
+
 include base/Makefile.am
 
 distclean-local:

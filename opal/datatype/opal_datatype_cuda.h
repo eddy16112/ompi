@@ -41,7 +41,7 @@ struct opal_datatype_cuda_kernel_function_table {
     int32_t (*opal_ddt_cuda_event_query_p)(void *cuda_event_list, int32_t i);
     int32_t (*opal_ddt_cuda_event_sync_p)(void *cuda_event_list, int32_t i);
     int32_t (*opal_ddt_cuda_event_record_p)(void *cuda_event_list, int32_t i);
-    int32_t (*opal_recude_op_sum_double_p)(void *source, void *target, int count);
+    int32_t (*opal_recude_op_sum_double_p)(void *source, void *target, int count, void *cublas_outer_stream);
     int32_t (*opal_ddt_generic_simple_pack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
     int32_t (*opal_ddt_generic_simple_unpack_function_cuda_iov_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
     int32_t (*opal_ddt_generic_simple_pack_function_cuda_vector_p)( opal_convertor_t* pConvertor, struct iovec* iov, uint32_t* out_size, size_t* max_data );
@@ -84,6 +84,6 @@ void opal_cuda_free_event(void *cuda_event_list, int32_t nb_events);
 int32_t opal_cuda_event_query(void *cuda_event_list, int32_t i);
 int32_t opal_cuda_event_sync(void *cuda_event_list, int32_t i);
 int32_t opal_cuda_event_record(void *cuda_event_list, int32_t i);
-int32_t opal_cuda_recude_op_sum_double(void *source, void *target, int count);
+int32_t opal_cuda_recude_op_sum_double(void *source, void *target, int count, void *cublas_outer_stream);
 
 #endif

@@ -960,7 +960,7 @@ void opal_dump_cuda_list(ddt_cuda_list_t *list)
     }
 }
 
-int32_t opal_recude_op_sum_double(void *source, void *target, int count)
+int32_t opal_recude_op_sum_double(void *source, void *target, int count, void *cublas_outer_stream)
 {
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     TIMER_DATA_TYPE start, end, start_total, end_total;
@@ -968,17 +968,25 @@ int32_t opal_recude_op_sum_double(void *source, void *target, int count)
 #endif
     double alpha = 1;
     cublasStatus_t stat;
+    int is_sync = 0;
 
 #if defined(OPAL_DATATYPE_CUDA_TIMING)
     GET_TIME(start);
 #endif
-    cublasSetStream(cublas_handle, cublas_stream);
+    if (cublas_outer_stream == NULL) {
+        cublasSetStream(cublas_handle, cublas_stream);
+        is_sync = 1;
+    } else {
+        cublasSetStream(cublas_handle, (cudaStream_t)cublas_outer_stream);
+    }
     stat = cublasDaxpy(cublas_handle, count, &alpha, (const double *)source, 1, (double *)target, 1);
     if (stat != CUBLAS_STATUS_SUCCESS) { 
         DT_CUDA_DEBUG( opal_cuda_output( 0, "cublasDaxpy error.\n"); );
         return -1; 
     }
-    cudaStreamSynchronize(cublas_stream);
+    if (is_sync) {
+        cudaStreamSynchronize(cublas_stream);
+    }
 #if defined(OPAL_DATATYPE_CUDA_TIMING) 
     GET_TIME( end );
     total_time = ELAPSED_TIME( start, end );

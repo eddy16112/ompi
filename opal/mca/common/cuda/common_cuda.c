@@ -1740,6 +1740,13 @@ void *mca_common_cuda_get_htod_stream(void) {
     return (void *)htodStream;
 }
 
+/**
+ * Used to get the ipc stream.
+ */
+void *mca_common_cuda_get_ipc_stream(void) {
+    return (void *)ipcStream[current_ipc_stream_id];
+}
+
 /*
  * Function is called every time progress is called with the sm BTL.  If there
  * are outstanding events, check to see if one has completed.  If so, hand
