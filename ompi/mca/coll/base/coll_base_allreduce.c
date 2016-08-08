@@ -482,13 +482,19 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
         block_count = ((prevblock < split_rank)? early_segcount : late_segcount);
         tmprecv = ((char*)rbuf) + (ptrdiff_t)block_offset * extent;
         //ompi_op_reduce(op, inbuf[inbi ^ 0x1], tmprecv, block_count, dtype);
-        opal_cuda_recude_op_sum_double(inbuf[inbi ^ 0x1], tmprecv, block_count, mca_common_cuda_get_ipc_stream());
+        opal_cuda_recude_op_sum_double(inbuf[inbi ^ 0x1], tmprecv, block_count, NULL);
 
+        ompi_request_t tmp_req_send;
+        // ret = MCA_PML_CALL(isend(tmprecv, block_count, dtype, send_to,
+        //                         MCA_COLL_BASE_TAG_ALLREDUCE,
+        //                         MCA_PML_BASE_SEND_STANDARD, comm, &tmp_req_send));
         /* send previous block to send_to */
         ret = MCA_PML_CALL(send(tmprecv, block_count, dtype, send_to,
                                 MCA_COLL_BASE_TAG_ALLREDUCE,
                                 MCA_PML_BASE_SEND_STANDARD, comm));
         if (MPI_SUCCESS != ret) { line = __LINE__; goto error_hndl; }
+     //   mca_common_cuda_sync_stream(mca_common_cuda_get_ipc_stream());
+      //  ompi_request_wait(&tmp_req_send, MPI_STATUS_IGNORE);
     }
 
     /* Wait on the last block to arrive */
@@ -504,7 +510,7 @@ ompi_coll_base_allreduce_intra_ring(const void *sbuf, void *rbuf, int count,
     block_count = ((recv_from < split_rank)? early_segcount : late_segcount);
     tmprecv = ((char*)rbuf) + (ptrdiff_t)block_offset * extent;
     //ompi_op_reduce(op, inbuf[inbi], tmprecv, block_count, dtype);
-    opal_cuda_recude_op_sum_double(inbuf[inbi], tmprecv, block_count, mca_common_cuda_get_ipc_stream());
+    opal_cuda_recude_op_sum_double(inbuf[inbi], tmprecv, block_count, NULL);
 
     /* Distribution loop - variation of ring allgather */
     send_to = (rank + 1) % size;

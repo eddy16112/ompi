@@ -73,6 +73,7 @@ OPAL_DECLSPEC int mca_common_cuda_record_unpack_event(char *msg, void *callback_
 OPAL_DECLSPEC void *mca_common_cuda_get_dtoh_stream(void);
 OPAL_DECLSPEC void *mca_common_cuda_get_htod_stream(void);
 OPAL_DECLSPEC void *mca_common_cuda_get_ipc_stream(void);
+OPAL_DECLSPEC int mca_common_cuda_sync_stream(void *stream);
 
 OPAL_DECLSPEC int progress_one_cuda_ipc_event(struct mca_btl_base_descriptor_t **);
 OPAL_DECLSPEC int progress_one_cuda_dtoh_event(struct mca_btl_base_descriptor_t **, opal_convertor_t **);
