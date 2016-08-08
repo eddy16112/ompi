@@ -1747,6 +1747,11 @@ void *mca_common_cuda_get_ipc_stream(void) {
     return (void *)ipcStream[current_ipc_stream_id];
 }
 
+int mca_common_cuda_sync_stream(void *stream) {
+    cuFunc.cuStreamSynchronize((CUstream)stream);
+    return OPAL_SUCCESS; 
+}
+
 /*
  * Function is called every time progress is called with the sm BTL.  If there
  * are outstanding events, check to see if one has completed.  If so, hand
