@@ -28,6 +28,7 @@
 #include "opal/dss/dss.h"
 #include "opal/dss/dss_internal.h"
 #include "opal/mca/hwloc/hwloc.h"
+#include "opal/util/argv.h"
 
 #include "orte/mca/errmgr/errmgr.h"
 #include "orte/runtime/data_type_support/orte_dt_support.h"
@@ -375,6 +376,14 @@ int orte_dt_unpack_proc(opal_buffer_t *buffer, void *dest,
         n = 1;
         if (ORTE_SUCCESS != (rc = opal_dss_unpack_buffer(buffer,
                          (&(procs[i]->app_idx)), &n, ORTE_STD_CNTR))) {
+            ORTE_ERROR_LOG(rc);
+            return rc;
+        }
+
+        /* unpack the app_rank */
+        n = 1;
+        if (ORTE_SUCCESS != (rc = opal_dss_unpack_buffer(buffer,
+                         (&(procs[i]->app_rank)), &n, OPAL_UINT32))) {
             ORTE_ERROR_LOG(rc);
             return rc;
         }

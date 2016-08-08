@@ -76,6 +76,8 @@ mca_btl_ugni_module_init (mca_btl_ugni_module_t *ugni_module,
     ugni_module->initialized = false;
     ugni_module->nlocal_procs = 0;
     ugni_module->active_send_count = 0;
+    ugni_module->connected_peer_count = 0;
+    ugni_module->active_rdma_count = 0;
 
     OBJ_CONSTRUCT(&ugni_module->failed_frags, opal_list_t);
     OBJ_CONSTRUCT(&ugni_module->failed_frags_lock, opal_mutex_t);
@@ -215,17 +217,8 @@ mca_btl_ugni_module_finalize (struct mca_btl_base_module_t *btl)
     OBJ_DESTRUCT(&ugni_module->eager_get_pending);
     OBJ_DESTRUCT(&ugni_module->eager_get_pending_lock);
 
-    if (ugni_module->initialized) {
-        /* need to tear down the mpools *after* the free lists */
-        if (NULL != ugni_module->smsg_mpool) {
-            (void) mca_mpool_base_module_destroy (ugni_module->smsg_mpool);
-            ugni_module->smsg_mpool  = NULL;
-        }
-
-        if (NULL != ugni_module->super.btl_mpool) {
-            (void) mca_mpool_base_module_destroy (ugni_module->super.btl_mpool);
-            ugni_module->super.btl_mpool = NULL;
-        }
+    if (ugni_module->rcache) {
+        mca_rcache_base_module_destroy (ugni_module->rcache);
     }
 
     ugni_module->initialized = false;
@@ -303,12 +296,13 @@ static mca_btl_base_registration_handle_t *
 mca_btl_ugni_register_mem (mca_btl_base_module_t *btl, mca_btl_base_endpoint_t *endpoint, void *base,
                            size_t size, uint32_t flags)
 {
+    mca_btl_ugni_module_t *ugni_module = (mca_btl_ugni_module_t *) btl;
     mca_btl_ugni_reg_t *reg;
     int access_flags = flags & MCA_BTL_REG_FLAG_ACCESS_ANY;
     int rc;
 
-    rc = btl->btl_mpool->mpool_register(btl->btl_mpool, base, size, 0, access_flags,
-                                        (mca_mpool_base_registration_t **) &reg);
+    rc = ugni_module->rcache->rcache_register (ugni_module->rcache, base, size, 0, access_flags,
+                                               (mca_rcache_base_registration_t **) &reg);
     if (OPAL_UNLIKELY(OPAL_SUCCESS != rc)) {
         return NULL;
     }
@@ -318,10 +312,11 @@ mca_btl_ugni_register_mem (mca_btl_base_module_t *btl, mca_btl_base_endpoint_t *
 
 static int mca_btl_ugni_deregister_mem (mca_btl_base_module_t *btl, mca_btl_base_registration_handle_t *handle)
 {
+    mca_btl_ugni_module_t *ugni_module = (mca_btl_ugni_module_t *) btl;
     mca_btl_ugni_reg_t *reg =
         (mca_btl_ugni_reg_t *)((intptr_t) handle - offsetof (mca_btl_ugni_reg_t, handle));
 
-    (void) btl->btl_mpool->mpool_deregister (btl->btl_mpool, &reg->base);
+    (void) ugni_module->rcache->rcache_deregister (ugni_module->rcache, &reg->base);
 
     return OPAL_SUCCESS;
 }

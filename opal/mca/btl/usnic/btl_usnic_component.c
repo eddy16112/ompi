@@ -86,6 +86,9 @@
 
 #define OPAL_BTL_USNIC_NUM_COMPLETIONS 500
 
+/* MPI_THREAD_MULTIPLE_SUPPORT */
+opal_recursive_mutex_t btl_usnic_lock =  OPAL_RECURSIVE_MUTEX_STATIC_INIT;
+
 /* RNG buffer definition */
 opal_rng_buff_t opal_btl_usnic_rand_buff = {0};
 
@@ -222,6 +225,8 @@ static int usnic_component_close(void)
     opal_btl_usnic_cleanup_tests();
 #endif
 
+    OBJ_DESTRUCT(&btl_usnic_lock);
+
     return OPAL_SUCCESS;
 }
 
@@ -337,11 +342,11 @@ static int check_usnic_config(opal_btl_usnic_module_t *module,
        1. num_vfs (i.e., "usNICs") >= num_local_procs (to ensure that
           each MPI process will be able to have its own protection
           domain), and
-       2. num_vfs * num_qps_per_vf >= num_local_procs * NUM_CHANNELS
+       2. num_qps_per_vf >= NUM_CHANNELS
           (to ensure that each MPI process will be able to get the
           number of QPs it needs -- we know that every VF will have
           the same number of QPs), and
-       3. num_vfs * num_cqs_per_vf >= num_local_procs * NUM_CHANNELS
+       3. num_cqs_per_vf >= NUM_CHANNELS
           (to ensure that each MPI process will be able to get the
           number of CQs that it needs) */
     if (uip->ui.v1.ui_num_vf < unlp) {
@@ -350,19 +355,17 @@ static int check_usnic_config(opal_btl_usnic_module_t *module,
         goto error;
     }
 
-    if (uip->ui.v1.ui_num_vf * uip->ui.v1.ui_qp_per_vf <
-        unlp * USNIC_NUM_CHANNELS) {
-        snprintf(str, sizeof(str), "Not enough WQ/RQ (found %d, need %d)",
-                 uip->ui.v1.ui_num_vf * uip->ui.v1.ui_qp_per_vf,
-                 unlp * USNIC_NUM_CHANNELS);
+    if (uip->ui.v1.ui_qp_per_vf < USNIC_NUM_CHANNELS) {
+        snprintf(str, sizeof(str), "Not enough transmit/receive queues per usNIC (found %d, need %d)",
+                 uip->ui.v1.ui_qp_per_vf,
+                 USNIC_NUM_CHANNELS);
         goto error;
     }
-    if (uip->ui.v1.ui_num_vf * uip->ui.v1.ui_cq_per_vf <
-        unlp * USNIC_NUM_CHANNELS) {
+    if (uip->ui.v1.ui_cq_per_vf < USNIC_NUM_CHANNELS) {
         snprintf(str, sizeof(str),
-                 "Not enough CQ per usNIC (found %d, need %d)",
-                 uip->ui.v1.ui_num_vf * uip->ui.v1.ui_cq_per_vf,
-                 unlp * USNIC_NUM_CHANNELS);
+                 "Not enough completion queues per usNIC (found %d, need %d)",
+                 uip->ui.v1.ui_cq_per_vf,
+                 USNIC_NUM_CHANNELS);
         goto error;
     }
 
@@ -617,12 +620,21 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 
     *num_btl_modules = 0;
 
-    /* Currently refuse to run if MPI_THREAD_MULTIPLE is enabled */
+    /* MPI_THREAD_MULTIPLE is only supported in 2.0+ */
     if (want_mpi_threads && !mca_btl_base_thread_multiple_override) {
-        opal_output_verbose(5, USNIC_OUT,
-                            "btl:usnic: MPI_THREAD_MULTIPLE not supported; skipping this component");
-        return NULL;
+
+	if (OMPI_MAJOR_VERSION >= 2) {
+            opal_output_verbose(5, USNIC_OUT,
+                                "btl:usnic: MPI_THREAD_MULTIPLE support is in testing phase.");
+	}
+	else {
+            opal_output_verbose(5, USNIC_OUT,
+                                "btl:usnic: MPI_THREAD_MULTIPLE is not supported in version < 2.");
+	    return NULL;
+	}
     }
+
+    OBJ_CONSTRUCT(&btl_usnic_lock, opal_recursive_mutex_t);
 
     /* We only want providers named "usnic that are of type EP_DGRAM */
     fabric_attr.prov_name = "usnic";
@@ -845,7 +857,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         }
 
         ret =
-            module->usnic_fabric_ops->getinfo(FI_EXT_USNIC_INFO_VERSION,
+            module->usnic_fabric_ops->getinfo(1,
                                             fabric,
                                             &module->usnic_info);
         if (ret != 0) {
@@ -1153,6 +1165,8 @@ static int usnic_handle_completion(
     /* Make the completion be Valgrind-defined */
     opal_memchecker_base_mem_defined(seg, sizeof(*seg));
 
+    OPAL_THREAD_LOCK(&btl_usnic_lock);
+
     /* Handle work completions */
     switch(seg->us_type) {
 
@@ -1183,6 +1197,8 @@ static int usnic_handle_completion(
         BTL_ERROR(("Unhandled completion segment type %d", seg->us_type));
         break;
     }
+
+    OPAL_THREAD_UNLOCK(&btl_usnic_lock);
     return 1;
 }
 

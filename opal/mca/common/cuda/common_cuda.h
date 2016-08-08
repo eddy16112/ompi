@@ -28,11 +28,7 @@
 #define MEMHANDLE_SIZE 8
 #define EVTHANDLE_SIZE 8
 
-typedef struct {
-    uint64_t evtHandle[EVTHANDLE_SIZE];
-}cuIPCHandle_t;
-
-struct mca_mpool_common_cuda_reg_data_t {
+struct mca_rcache_common_cuda_reg_data_t {
     uint64_t memHandle[MEMHANDLE_SIZE];
     uint64_t evtHandle[EVTHANDLE_SIZE];
     uint64_t event;
@@ -42,13 +38,13 @@ struct mca_mpool_common_cuda_reg_data_t {
     int32_t gpu_device;
     struct opal_convertor_t *convertor;
 };
-typedef struct mca_mpool_common_cuda_reg_data_t mca_mpool_common_cuda_reg_data_t;
+typedef struct mca_rcache_common_cuda_reg_data_t mca_rcache_common_cuda_reg_data_t;
 
-struct mca_mpool_common_cuda_reg_t {
-    mca_mpool_base_registration_t base;
-    mca_mpool_common_cuda_reg_data_t data;
+struct mca_rcache_common_cuda_reg_t {
+    mca_rcache_base_registration_t base;
+    mca_rcache_common_cuda_reg_data_t data;
 };
-typedef struct mca_mpool_common_cuda_reg_t mca_mpool_common_cuda_reg_t;
+typedef struct mca_rcache_common_cuda_reg_t mca_rcache_common_cuda_reg_t;
 extern bool mca_common_cuda_enabled;
 
 OPAL_DECLSPEC void mca_common_cuda_register_mca_variables(void);
@@ -57,7 +53,7 @@ OPAL_DECLSPEC void mca_common_cuda_register(void *ptr, size_t amount, char *msg)
 
 OPAL_DECLSPEC void mca_common_cuda_unregister(void *ptr, char *msg);
 
-OPAL_DECLSPEC void mca_common_wait_stream_synchronize(mca_mpool_common_cuda_reg_t *rget_reg);
+OPAL_DECLSPEC void mca_common_wait_stream_synchronize(mca_rcache_common_cuda_reg_t *rget_reg);
 
 OPAL_DECLSPEC int mca_common_cuda_memcpy(void *dst, void *src, size_t amount, char *msg,
                                          struct mca_btl_base_descriptor_t *, int *done);
@@ -85,18 +81,18 @@ OPAL_DECLSPEC int progress_one_cuda_htod_event(struct mca_btl_base_descriptor_t 
 OPAL_DECLSPEC int progress_one_cuda_pack_event(void **callback_frag);
 OPAL_DECLSPEC int progress_one_cuda_unpack_event(void **callback_frag);
 
-OPAL_DECLSPEC int mca_common_cuda_memhandle_matches(mca_mpool_common_cuda_reg_t *new_reg,
-                                                    mca_mpool_common_cuda_reg_t *old_reg);
+OPAL_DECLSPEC int mca_common_cuda_memhandle_matches(mca_rcache_common_cuda_reg_t *new_reg,
+                                                    mca_rcache_common_cuda_reg_t *old_reg);
 
 OPAL_DECLSPEC void mca_common_cuda_construct_event_and_handle(uintptr_t *event, void *handle);
 OPAL_DECLSPEC void mca_common_cuda_destruct_event(uintptr_t event);
 
-OPAL_DECLSPEC int cuda_getmemhandle(void *base, size_t, mca_mpool_base_registration_t *newreg,
-                                    mca_mpool_base_registration_t *hdrreg);
-OPAL_DECLSPEC int cuda_ungetmemhandle(void *reg_data, mca_mpool_base_registration_t *reg);
-OPAL_DECLSPEC int cuda_openmemhandle(void *base, size_t size, mca_mpool_base_registration_t *newreg,
-                                     mca_mpool_base_registration_t *hdrreg);
-OPAL_DECLSPEC int cuda_closememhandle(void *reg_data, mca_mpool_base_registration_t *reg);
+OPAL_DECLSPEC int cuda_getmemhandle(void *base, size_t, mca_rcache_base_registration_t *newreg,
+                                    mca_rcache_base_registration_t *hdrreg);
+OPAL_DECLSPEC int cuda_ungetmemhandle(void *reg_data, mca_rcache_base_registration_t *reg);
+OPAL_DECLSPEC int cuda_openmemhandle(void *base, size_t size, mca_rcache_base_registration_t *newreg,
+                                     mca_rcache_base_registration_t *hdrreg);
+OPAL_DECLSPEC int cuda_closememhandle(void *reg_data, mca_rcache_base_registration_t *reg);
 OPAL_DECLSPEC int mca_common_cuda_get_device(int *devicenum);
 OPAL_DECLSPEC int mca_common_cuda_device_can_access_peer(int *access, int dev1, int dev2);
 OPAL_DECLSPEC int mca_common_cuda_stage_one_init(void);
@@ -108,8 +104,8 @@ OPAL_DECLSPEC int mca_common_cuda_query_event(uint64_t *event);
 OPAL_DECLSPEC int mca_common_cuda_openeventhandle(uint64_t **event, int n, mca_mpool_common_cuda_reg_data_t *handle);
 OPAL_DECLSPEC int mca_common_cuda_memp2pcpy(void *dest, const void *src, size_t size);
 #if OPAL_CUDA_GDR_SUPPORT
-OPAL_DECLSPEC bool mca_common_cuda_previously_freed_memory(mca_mpool_base_registration_t *reg);
-OPAL_DECLSPEC void mca_common_cuda_get_buffer_id(mca_mpool_base_registration_t *reg);
+OPAL_DECLSPEC bool mca_common_cuda_previously_freed_memory(mca_rcache_base_registration_t *reg);
+OPAL_DECLSPEC void mca_common_cuda_get_buffer_id(mca_rcache_base_registration_t *reg);
 #endif /* OPAL_CUDA_GDR_SUPPORT */
 /**
  * Return:   0 if no packing is required for sending (the upper layer

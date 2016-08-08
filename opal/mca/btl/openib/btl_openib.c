@@ -57,7 +57,7 @@
 #include "opal/datatype/opal_convertor.h"
 #include "opal/mca/mpool/base/base.h"
 #include "opal/mca/mpool/mpool.h"
-#include "opal/mca/mpool/grdma/mpool_grdma.h"
+#include "opal/mca/rcache/rcache.h"
 
 #if OPAL_CUDA_SUPPORT
 #include "opal/datatype/opal_datatype_cuda.h"
@@ -425,13 +425,19 @@ static int openib_btl_prepare(struct mca_btl_openib_module_t* openib_btl)
 static int openib_btl_size_queues(struct mca_btl_openib_module_t* openib_btl)
 {
     uint32_t send_cqes, recv_cqes;
-    int rc = OPAL_SUCCESS, qp;
+    int rc = OPAL_SUCCESS;
     mca_btl_openib_device_t *device = openib_btl->device;
+    uint32_t requested[BTL_OPENIB_MAX_CQ];
 
     opal_mutex_lock(&openib_btl->ib_lock);
+
+    for (int cq = 0 ; cq < BTL_OPENIB_MAX_CQ ; ++cq) {
+        requested[cq] = 0;
+    }
+
     /* figure out reasonable sizes for completion queues */
-    for(qp = 0; qp < mca_btl_openib_component.num_qps; qp++) {
-        if(BTL_OPENIB_QP_TYPE_SRQ(qp)) {
+    for (int qp = 0 ; qp < mca_btl_openib_component.num_qps ; qp++) {
+        if (BTL_OPENIB_QP_TYPE_SRQ(qp)) {
             send_cqes = mca_btl_openib_component.qp_infos[qp].u.srq_qp.sd_max;
             recv_cqes = mca_btl_openib_component.qp_infos[qp].rd_num;
         } else {
@@ -440,24 +446,30 @@ static int openib_btl_size_queues(struct mca_btl_openib_module_t* openib_btl)
             recv_cqes = send_cqes;
         }
 
-        opal_mutex_lock(&openib_btl->device->device_lock);
-        openib_btl->device->cq_size[qp_cq_prio(qp)] += recv_cqes;
-        openib_btl->device->cq_size[BTL_OPENIB_LP_CQ] += send_cqes;
-        opal_mutex_unlock(&openib_btl->device->device_lock);
+        requested[qp_cq_prio(qp)] += recv_cqes;
+        requested[BTL_OPENIB_LP_CQ] += send_cqes;
     }
 
-    rc = adjust_cq(device, BTL_OPENIB_HP_CQ);
-    if (OPAL_SUCCESS != rc) {
-        goto out;
-    }
+    opal_mutex_lock (&openib_btl->device->device_lock);
+    for (int cq = 0 ; cq < BTL_OPENIB_MAX_CQ ; ++cq) {
+        if (requested[cq] < mca_btl_openib_component.ib_cq_size[cq]) {
+            requested[cq] = mca_btl_openib_component.ib_cq_size[cq];
+        } else if (requested[cq] > (uint32_t) openib_btl->device->ib_dev_attr.max_cqe) {
+            requested[cq] = openib_btl->device->ib_dev_attr.max_cqe;
+        }
 
-    rc = adjust_cq(device, BTL_OPENIB_LP_CQ);
-    if (OPAL_SUCCESS != rc) {
-        goto out;
-    }
+        if (openib_btl->device->cq_size[cq] < requested[cq]) {
+            openib_btl->device->cq_size[cq] = requested[cq];
 
-out:
+            rc = adjust_cq (device, cq);
+            if (OPAL_SUCCESS != rc) {
+                break;
+            }
+        }
+    }
+    opal_mutex_unlock (&openib_btl->device->device_lock);
     opal_mutex_unlock(&openib_btl->ib_lock);
+
     return rc;
 }
 
@@ -733,7 +745,7 @@ static int prepare_device_for_use (mca_btl_openib_device_t *device)
                 mca_btl_openib_component.buffer_alignment,
                 mca_btl_openib_component.ib_free_list_num, -1,
                 mca_btl_openib_component.ib_free_list_inc,
-                device->mpool, 0, NULL, mca_btl_openib_frag_init,
+                device->mpool, 0, device->rcache, mca_btl_openib_frag_init,
                 init_data);
     if (OPAL_SUCCESS != rc) {
         /* If we're "out of memory", this usually means that we ran
@@ -774,7 +786,7 @@ static int prepare_device_for_use (mca_btl_openib_device_t *device)
                     mca_btl_openib_component.ib_free_list_num,
                     mca_btl_openib_component.ib_free_list_max,
                     mca_btl_openib_component.ib_free_list_inc,
-                    device->mpool, 0, NULL, mca_btl_openib_frag_init,
+                    device->mpool, 0, device->rcache, mca_btl_openib_frag_init,
                     init_data);
         if (OPAL_SUCCESS != rc) {
             /* If we're "out of memory", this usually means that we
@@ -807,7 +819,7 @@ static int prepare_device_for_use (mca_btl_openib_device_t *device)
                     mca_btl_openib_component.ib_free_list_num,
                     mca_btl_openib_component.ib_free_list_max,
                     mca_btl_openib_component.ib_free_list_inc,
-                    device->mpool, 0, NULL, mca_btl_openib_frag_init,
+                    device->mpool, 0, device->rcache, mca_btl_openib_frag_init,
                     init_data)) {
             rc = OPAL_ERROR;
             goto exit;
@@ -849,6 +861,14 @@ static int init_ib_proc_nolock(mca_btl_openib_module_t* openib_btl, mca_btl_open
                 matching_port = j;
             }
             rem_port_cnt++;
+        } else {
+            if (mca_btl_openib_component.allow_different_subnets) {
+                BTL_VERBOSE(("Using different subnets!"));
+                if (rem_port_cnt == btl_rank) {
+                    matching_port = j;
+                }
+                rem_port_cnt++;
+            }
         }
     }
 
@@ -915,6 +935,13 @@ static int init_ib_proc_nolock(mca_btl_openib_module_t* openib_btl, mca_btl_open
                     break;
                 else
                     rem_port_cnt ++;
+            } else {
+                if (mca_btl_openib_component.allow_different_subnets) {
+                    if (rem_port_cnt == btl_rank)
+                        break;
+                    else
+                        rem_port_cnt ++;
+                }
             }
         }
 
@@ -981,6 +1008,13 @@ static int get_openib_btl_params(mca_btl_openib_module_t* openib_btl, int *port_
                 rank = port_cnt;
             }
             port_cnt++;
+        } else {
+            if (mca_btl_openib_component.allow_different_subnets) {
+                if (openib_btl == mca_btl_openib_component.openib_btls[j]) {
+                    rank = port_cnt;
+                }
+                port_cnt++;
+            }
         }
     }
     *port_cnt_ptr = port_cnt;
@@ -1085,7 +1119,7 @@ int mca_btl_openib_add_procs(
     }
 
     if (nprocs_new) {
-        OPAL_THREAD_ADD32(&openib_btl->num_peers, nprocs_new);
+        opal_atomic_add_32 (&openib_btl->num_peers, nprocs_new);
 
         /* adjust cq sizes given the new procs */
         rc = openib_btl_size_queues (openib_btl);
@@ -1195,7 +1229,7 @@ struct mca_btl_base_endpoint_t *mca_btl_openib_get_ep (struct mca_btl_base_modul
 
         /* this is a new process to this openib btl
          * account this procs if need */
-        OPAL_THREAD_ADD32(&openib_btl->num_peers, 1);
+        opal_atomic_add_32 (&openib_btl->num_peers, 1);
         rc = openib_btl_size_queues(openib_btl);
         if (OPAL_SUCCESS != rc) {
             BTL_ERROR(("error creating cqs"));
@@ -1923,6 +1957,7 @@ static mca_btl_base_registration_handle_t *mca_btl_openib_register_mem (mca_btl_
                                                                         mca_btl_base_endpoint_t *endpoint,
                                                                         void *base, size_t size, uint32_t flags)
 {
+    mca_btl_openib_module_t *openib_module = (mca_btl_openib_module_t *) btl;
     mca_btl_openib_reg_t *reg;
     uint32_t mflags = 0;
     int access_flags = flags & MCA_BTL_REG_FLAG_ACCESS_ANY;
@@ -1930,12 +1965,12 @@ static mca_btl_base_registration_handle_t *mca_btl_openib_register_mem (mca_btl_
 
 #if OPAL_CUDA_GDR_SUPPORT
     if (flags & MCA_BTL_REG_FLAG_CUDA_GPU_MEM) {
-        mflags |= MCA_MPOOL_FLAGS_CUDA_GPU_MEM;
+        mflags |= MCA_RCACHE_FLAGS_CUDA_GPU_MEM;
     }
 #endif /* OPAL_CUDA_GDR_SUPPORT */
 
-    rc = btl->btl_mpool->mpool_register (btl->btl_mpool, base, size, mflags, access_flags,
-                                         (mca_mpool_base_registration_t **) &reg);
+    rc = openib_module->device->rcache->rcache_register (openib_module->device->rcache, base, size, mflags,
+                                                         access_flags, (mca_rcache_base_registration_t **) &reg);
     if (OPAL_UNLIKELY(OPAL_SUCCESS != rc || NULL == reg)) {
         return NULL;
     }
@@ -1945,9 +1980,10 @@ static mca_btl_base_registration_handle_t *mca_btl_openib_register_mem (mca_btl_
 
 static int mca_btl_openib_deregister_mem (mca_btl_base_module_t *btl, mca_btl_base_registration_handle_t *handle)
 {
+    mca_btl_openib_module_t *openib_module = (mca_btl_openib_module_t *) btl;
     mca_btl_openib_reg_t *reg = (mca_btl_openib_reg_t *)((intptr_t) handle - offsetof (mca_btl_openib_reg_t, btl_handle));
 
-    btl->btl_mpool->mpool_deregister (btl->btl_mpool, (mca_mpool_base_registration_t *) reg);
+    openib_module->device->rcache->rcache_deregister (openib_module->device->rcache, (mca_rcache_base_registration_t *) reg);
 
     return OPAL_SUCCESS;
 }

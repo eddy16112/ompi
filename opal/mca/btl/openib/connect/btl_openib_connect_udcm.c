@@ -74,7 +74,6 @@
 #include "btl_openib_async.h"
 #include "connect/connect.h"
 
-#include "opal/mca/mpool/grdma/mpool_grdma.h"
 #include "opal/util/sys_limits.h"
 
 #if (ENABLE_DYNAMIC_SL)
@@ -1367,7 +1366,7 @@ static int udcm_rc_qp_create_one(udcm_module_t *m, mca_btl_base_endpoint_t* lcl_
                                                                     &init_attr))) {
         /* NTH: this process may be out of registered memory. try evicting an item from
            the lru of this btl's mpool */
-        if (false == mca_mpool_grdma_evict (m->btl->super.btl_mpool)) {
+        if (false == m->btl->device->rcache->rcache_evict (m->btl->device->rcache)) {
             break;
         }
     }
@@ -1378,7 +1377,7 @@ static int udcm_rc_qp_create_one(udcm_module_t *m, mca_btl_base_endpoint_t* lcl_
                                                                &init_attr))) {
         /* NTH: this process may be out of registered memory. try evicting an item from
            the lru of this btl's mpool */
-        if (false == mca_mpool_grdma_evict (m->btl->super.btl_mpool)) {
+        if (false == m->btl->device->rcache->rcache_evict (m->btl->device->rcache)) {
             break;
         }
     }
@@ -2543,7 +2542,7 @@ static int udcm_xrc_send_qp_create (mca_btl_base_endpoint_t *lcl_ep)
     psn = &lcl_ep->qps[0].qp->lcl_psn;
 
     /* reserve additional wr for eager rdma credit management */
-    send_wr = lcl_ep->ib_addr->qp->sd_wqe +
+    send_wr = lcl_ep->ib_addr->max_wqe +
         (mca_btl_openib_component.use_eager_rdma ?
          mca_btl_openib_component.max_eager_rdma : 0);
 #if OPAL_HAVE_CONNECTX_XRC_DOMAINS
@@ -2555,6 +2554,8 @@ static int udcm_xrc_send_qp_create (mca_btl_base_endpoint_t *lcl_ep)
 
     qp_init_attr.send_cq = qp_init_attr.recv_cq = openib_btl->device->ib_cq[prio];
 
+    /* if this code is update the code in endpoint_init_qp_xrc may need to
+     * be updated as well */
     /* no need recv queue; receives are posted to srq */
     qp_init_attr.cap.max_recv_wr = 0;
     qp_init_attr.cap.max_send_wr = send_wr;

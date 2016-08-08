@@ -11,10 +11,10 @@
  *                         All rights reserved.
  * Copyright (c) 2011-2013 Los Alamos National Security, LLC.
  *                         All rights reserved.
- * Copyright (c) 2013-2015 Intel, Inc. All rights reserved.
+ * Copyright (c) 2013-2016 Intel, Inc. All rights reserved.
  * Copyright (c) 2014      Hochschule Esslingen.  All rights reserved.
  *
- * Copyright (c) 2015 Cisco Systems, Inc.  All rights reserved.
+ * Copyright (c) 2015      Cisco Systems, Inc.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -43,7 +43,6 @@
 #include "orte/mca/oob/base/base.h"
 #include "orte/mca/plm/base/base.h"
 #include "orte/mca/rml/base/base.h"
-#include "orte/mca/qos/base/base.h"
 #include "orte/mca/routed/base/base.h"
 #include "orte/mca/errmgr/base/base.h"
 #include "orte/mca/iof/base/base.h"
@@ -52,7 +51,6 @@
 #include "orte/mca/snapc/base/base.h"
 #include "orte/mca/sstore/base/base.h"
 #endif
-#include "orte/mca/schizo/base/base.h"
 #include "orte/util/proc_info.h"
 #include "orte/util/session_dir.h"
 #include "orte/util/show_help.h"
@@ -120,17 +118,6 @@ int orte_ess_base_tool_setup(void)
         error = "orte_rml_base_select";
         goto error;
     }
-    /* Messaging QoS Layer */
-    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_qos_base_framework, 0))) {
-        ORTE_ERROR_LOG(ret);
-        error = "orte_qos_base_open";
-        goto error;
-    }
-    if (ORTE_SUCCESS != (ret = orte_qos_base_select())) {
-        ORTE_ERROR_LOG(ret);
-        error = "orte_qos_base_select";
-        goto error;
-    }
     /* Routed system */
     if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_routed_base_framework, 0))) {
         ORTE_ERROR_LOG(ret);
@@ -161,7 +148,7 @@ int orte_ess_base_tool_setup(void)
     if (ORTE_SUCCESS != (ret = orte_session_dir_get_name(NULL,
                                                          &orte_process_info.tmpdir_base,
                                                          &orte_process_info.top_session_dir,
-                                                         orte_process_info.nodename, NULL, NULL))) {
+                                                         orte_process_info.nodename, NULL))) {
         ORTE_ERROR_LOG(ret);
         error = "define session dir names";
         goto error;
@@ -230,18 +217,6 @@ int orte_ess_base_tool_setup(void)
     opal_cr_set_enabled(false);
 #endif
 
-    /* setup schizo in case we are parsing cmd lines */
-    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_schizo_base_framework, 0))) {
-        ORTE_ERROR_LOG(ret);
-        error = "orte_schizo_base_open";
-        goto error;
-    }
-    if (ORTE_SUCCESS != (ret = orte_schizo_base_select())) {
-        ORTE_ERROR_LOG(ret);
-        error = "orte_schizo_base_select";
-        goto error;
-    }
-
     return ORTE_SUCCESS;
 
  error:
@@ -270,7 +245,6 @@ int orte_ess_base_tool_finalize(void)
     }
     (void) mca_base_framework_close(&orte_routed_base_framework);
     (void) mca_base_framework_close(&orte_rml_base_framework);
-    (void) mca_base_framework_close(&orte_schizo_base_framework);
     (void) mca_base_framework_close(&orte_errmgr_base_framework);
 
     return ORTE_SUCCESS;

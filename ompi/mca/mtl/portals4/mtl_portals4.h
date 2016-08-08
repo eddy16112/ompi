@@ -42,23 +42,23 @@ struct mca_mtl_portals4_module_t {
     mca_mtl_base_module_t base;
 
     /* add_procs() can get called multiple times.  this prevents multiple calls to portals4_init_interface(). */
-    int need_init;
+    int32_t need_init;
 
     /* Use the logical to physical table to accelerate portals4 adressing: 1 (true) : 0 (false) */
-    int use_logical;
+    int32_t use_logical;
     /* Use flow control: 1 (true) : 0 (false) */
-    int use_flowctl;
+    int32_t use_flowctl;
 
     /** Eager limit; messages greater than this use a rendezvous protocol */
-    unsigned long long eager_limit;
+    uint64_t eager_limit;
     /** Size of short message blocks */
-    unsigned long long recv_short_size;
+    uint64_t recv_short_size;
     /** Number of short message blocks which should be created during startup */
-    int recv_short_num;
+    uint32_t recv_short_num;
     /** Length of the send event queues */
-    int send_queue_size;
+    uint32_t send_queue_size;
     /** Length of the receive event queues */
-    int recv_queue_size;
+    uint32_t recv_queue_size;
     /** Protocol for long message transfer */
     enum { eager, rndv } protocol;
 
@@ -202,26 +202,18 @@ extern mca_mtl_portals4_module_t ompi_mtl_portals4;
     ((int)((match_bits & MTL_PORTALS4_SOURCE_MASK) >> 24))
 
 
-/* hda_data bit manipulation
- *
- * 0 1234567 01234567 01234567 0123 4567 01234567 01234567 01234567 01234567
- *  |                              |             |
- * ^|                              | context id  |        message tag
- * ||                              |             |
- * +---- is_sync
- */
-
 #define MTL_PORTALS4_SYNC_MSG       0x8000000000000000ULL
 
-#define MTL_PORTALS4_SET_HDR_DATA(hdr_data, tag, contextid, sync)    \
+#define MTL_PORTALS4_SET_HDR_DATA(hdr_data, opcount, length, sync)   \
     {                                                                \
         hdr_data = (sync) ? 1 : 0;                                   \
-        hdr_data = (hdr_data << 39);                                 \
-        hdr_data |= contextid;                                       \
-        hdr_data = (hdr_data << 24);                                 \
-        hdr_data |= (MTL_PORTALS4_TAG_MASK & tag);                   \
+        hdr_data = (hdr_data << 15);                                 \
+        hdr_data |= opcount & 0x7FFFULL;                             \
+        hdr_data = (hdr_data << 48);                                 \
+        hdr_data |= (length & 0xFFFFFFFFFFFFULL);                    \
     }
 
+#define MTL_PORTALS4_GET_LENGTH(hdr_data) ((size_t)(hdr_data & 0xFFFFFFFFFFFFULL))
 #define MTL_PORTALS4_IS_SYNC_MSG(hdr_data)            \
     (0 != (MTL_PORTALS4_SYNC_MSG & hdr_data))
 

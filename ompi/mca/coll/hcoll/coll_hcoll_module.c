@@ -1,5 +1,6 @@
 /**
   Copyright (c) 2011 Mellanox Technologies. All rights reserved.
+  Copyright (c) 2016      IBM Corporation.  All rights reserved.
   $COPYRIGHT$
 
   Additional copyrights may follow
@@ -9,8 +10,10 @@
 
 #include "ompi_config.h"
 #include "coll_hcoll.h"
+#include "coll_hcoll_dtypes.h"
 
 int hcoll_comm_attr_keyval;
+int hcoll_type_attr_keyval;
 
 /*
  * Initial query function that is invoked during MPI_INIT, allowing
@@ -50,6 +53,32 @@ static void mca_coll_hcoll_module_clear(mca_coll_hcoll_module_t *hcoll_module)
     hcoll_module->previous_iallgatherv = NULL;
     hcoll_module->previous_igatherv    = NULL;
     hcoll_module->previous_ireduce     = NULL;
+    hcoll_module->previous_ialltoall   = NULL;
+    hcoll_module->previous_ialltoallv  = NULL;
+
+    hcoll_module->previous_barrier_module = NULL;
+    hcoll_module->previous_bcast_module      = NULL;
+    hcoll_module->previous_allreduce_module  = NULL;
+    hcoll_module->previous_reduce_module     = NULL;
+    hcoll_module->previous_allgather_module  = NULL;
+    hcoll_module->previous_allgatherv_module = NULL;
+    hcoll_module->previous_gather_module     = NULL;
+    hcoll_module->previous_gatherv_module    = NULL;
+    hcoll_module->previous_alltoall_module   = NULL;
+    hcoll_module->previous_alltoallv_module  = NULL;
+    hcoll_module->previous_alltoallw_module  = NULL;
+    hcoll_module->previous_reduce_scatter_module  = NULL;
+    hcoll_module->previous_ibarrier_module    = NULL;
+    hcoll_module->previous_ibcast_module      = NULL;
+    hcoll_module->previous_iallreduce_module  = NULL;
+    hcoll_module->previous_ireduce_module     = NULL;
+    hcoll_module->previous_iallgather_module  = NULL;
+    hcoll_module->previous_iallgatherv_module = NULL;
+    hcoll_module->previous_igatherv_module    = NULL;
+    hcoll_module->previous_ialltoall_module   = NULL;
+    hcoll_module->previous_ialltoallv_module  = NULL;
+
+
 }
 
 static void mca_coll_hcoll_module_construct(mca_coll_hcoll_module_t *hcoll_module)
@@ -62,6 +91,8 @@ void mca_coll_hcoll_mem_release_cb(void *buf, size_t length,
 {
     hcoll_mem_unmap(buf, length, cbdata, from_alloc);
 }
+
+#define OBJ_RELEASE_IF_NOT_NULL( obj ) if( NULL != (obj) ) OBJ_RELEASE( obj );
 
 static void mca_coll_hcoll_module_destruct(mca_coll_hcoll_module_t *hcoll_module)
 {
@@ -79,25 +110,25 @@ static void mca_coll_hcoll_module_destruct(mca_coll_hcoll_module_t *hcoll_module
        destroy hcoll context*/
 
     if (hcoll_module->hcoll_context != NULL){
-        OBJ_RELEASE(hcoll_module->previous_barrier_module);
-        OBJ_RELEASE(hcoll_module->previous_bcast_module);
-        OBJ_RELEASE(hcoll_module->previous_allreduce_module);
-        OBJ_RELEASE(hcoll_module->previous_allgather_module);
-        OBJ_RELEASE(hcoll_module->previous_allgatherv_module);
-        OBJ_RELEASE(hcoll_module->previous_gatherv_module);
-        OBJ_RELEASE(hcoll_module->previous_alltoall_module);
-        OBJ_RELEASE(hcoll_module->previous_alltoallv_module);
-        OBJ_RELEASE(hcoll_module->previous_reduce_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_barrier_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_bcast_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_allreduce_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_allgather_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_allgatherv_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_gatherv_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_alltoall_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_alltoallv_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_reduce_module);
 
-        OBJ_RELEASE(hcoll_module->previous_ibarrier_module);
-        OBJ_RELEASE(hcoll_module->previous_ibcast_module);
-        OBJ_RELEASE(hcoll_module->previous_iallreduce_module);
-        OBJ_RELEASE(hcoll_module->previous_iallgather_module);
-        OBJ_RELEASE(hcoll_module->previous_iallgatherv_module);
-        OBJ_RELEASE(hcoll_module->previous_igatherv_module);
-        OBJ_RELEASE(hcoll_module->previous_ialltoall_module);
-        OBJ_RELEASE(hcoll_module->previous_ialltoallv_module);
-        OBJ_RELEASE(hcoll_module->previous_ireduce_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_ibarrier_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_ibcast_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_iallreduce_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_iallgather_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_iallgatherv_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_igatherv_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_ialltoall_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_ialltoallv_module);
+        OBJ_RELEASE_IF_NOT_NULL(hcoll_module->previous_ireduce_module);
 
         /*
         OBJ_RELEASE(hcoll_module->previous_allgatherv_module);
@@ -211,6 +242,10 @@ int mca_coll_hcoll_progress(void)
 }
 
 
+OBJ_CLASS_INSTANCE(mca_coll_hcoll_dtype_t,
+                   opal_free_list_item_t,
+                   NULL,NULL);
+
 /*
  * Invoked when there's a new communicator that has been created.
  * Look at the communicator and decide which set of functions and
@@ -288,6 +323,24 @@ mca_coll_hcoll_comm_query(struct ompi_communicator_t *comm, int *priority)
             HCOL_ERROR("Hcol comm keyval create failed");
             return NULL;
         }
+
+        if (mca_coll_hcoll_component.derived_types_support_enabled) {
+            copy_fn.attr_datatype_copy_fn = (MPI_Type_internal_copy_attr_function *) MPI_TYPE_NULL_COPY_FN;
+            del_fn.attr_datatype_delete_fn = hcoll_type_attr_del_fn;
+            err = ompi_attr_create_keyval(TYPE_ATTR, copy_fn, del_fn, &hcoll_type_attr_keyval, NULL ,0, NULL);
+            if (OMPI_SUCCESS != err) {
+                cm->hcoll_enable = 0;
+                hcoll_finalize();
+                opal_progress_unregister(mca_coll_hcoll_progress);
+                HCOL_ERROR("Hcol type keyval create failed");
+                return NULL;
+            }
+        }
+        OBJ_CONSTRUCT(&cm->dtypes, opal_free_list_t);
+        opal_free_list_init(&cm->dtypes, sizeof(mca_coll_hcoll_dtype_t),
+                            8, OBJ_CLASS(mca_coll_hcoll_dtype_t), 0, 0,
+                            32, -1, 32, NULL, 0, NULL, NULL, NULL);
+
     }
 
     hcoll_module = OBJ_NEW(mca_coll_hcoll_module_t);

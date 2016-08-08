@@ -16,7 +16,7 @@
  * Copyright (c) 2013-2015 Intel, Inc.  All rights reserved.
  * Copyright (c) 2014      Mellanox Technologies, Inc.
  *                         All rights reserved.
- * Copyright (c) 2014      Research Organization for Information Science
+ * Copyright (c) 2014-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
@@ -93,7 +93,7 @@ int pmix_server_publish_fn(opal_process_name_t *proc,
     int rc;
     uint8_t cmd = ORTE_PMIX_PUBLISH_CMD;
     opal_value_t *iptr;
-    opal_pmix_data_range_t range = OPAL_PMIX_SESSION;
+    opal_pmix_data_range_t range = OPAL_PMIX_RANGE_SESSION;
     opal_pmix_persistence_t persist = OPAL_PMIX_PERSIST_APP;
     bool rset, pset;
 
@@ -121,13 +121,13 @@ int pmix_server_publish_fn(opal_process_name_t *proc,
     pset = false;
     OPAL_LIST_FOREACH(iptr, info, opal_value_t) {
         if (0 == strcmp(iptr->key, OPAL_PMIX_RANGE)) {
-            range = iptr->data.integer;
+            range = (opal_pmix_data_range_t)iptr->data.uint;
             if (pset) {
                 break;
             }
             rset = true;
         } else if (0 == strcmp(iptr->key, OPAL_PMIX_PERSISTENCE)) {
-            persist = iptr->data.integer;
+            persist = (opal_pmix_persistence_t)iptr->data.integer;
             if (rset) {
                 break;
             }
@@ -136,14 +136,14 @@ int pmix_server_publish_fn(opal_process_name_t *proc,
     }
 
     /* pack the range */
-    if (OPAL_SUCCESS != (rc = opal_dss.pack(&req->msg, &range, 1, OPAL_INT))) {
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(&req->msg, &range, 1, OPAL_PMIX_DATA_RANGE))) {
         ORTE_ERROR_LOG(rc);
         OBJ_RELEASE(req);
         return rc;
     }
 
     /* if the range is SESSION, then set the target to the global server */
-    if (OPAL_PMIX_SESSION == range) {
+    if (OPAL_PMIX_RANGE_SESSION == range) {
         req->target = orte_pmix_server_globals.server;
     } else {
         req->target = *ORTE_PROC_MY_HNP;
@@ -156,11 +156,16 @@ int pmix_server_publish_fn(opal_process_name_t *proc,
         return rc;
     }
 
-    /* if we have items, pack those too - ignore persistence
+    /* if we have items, pack those too - ignore persistence, timeout
      * and range values */
     OPAL_LIST_FOREACH(iptr, info, opal_value_t) {
         if (0 == strcmp(iptr->key, OPAL_PMIX_RANGE) ||
             0 == strcmp(iptr->key, OPAL_PMIX_PERSISTENCE)) {
+            continue;
+        }
+        if (0 == strcmp(iptr->key, OPAL_PMIX_TIMEOUT)) {
+            /* record the timeout value, but don't pack it */
+            req->timeout = iptr->data.integer;
             continue;
         }
         opal_output_verbose(5, orte_pmix_server_globals.output,
@@ -193,7 +198,7 @@ int pmix_server_lookup_fn(opal_process_name_t *proc, char **keys,
     uint8_t cmd = ORTE_PMIX_LOOKUP_CMD;
     int32_t nkeys, i;
     opal_value_t *iptr;
-    opal_pmix_data_range_t range = OPAL_PMIX_SESSION;
+    opal_pmix_data_range_t range = OPAL_PMIX_RANGE_SESSION;
 
     /* the list of info objects are directives for us - they include
      * things like timeout constraints, so there is no reason to
@@ -211,23 +216,30 @@ int pmix_server_lookup_fn(opal_process_name_t *proc, char **keys,
         return rc;
     }
 
+    /* pack the requesting process jobid */
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(&req->msg, &proc->jobid, 1, ORTE_JOBID))) {
+        ORTE_ERROR_LOG(rc);
+        OBJ_RELEASE(req);
+        return rc;
+    }
+
     /* no help for it - need to search for range */
     OPAL_LIST_FOREACH(iptr, info, opal_value_t) {
         if (0 == strcmp(iptr->key, OPAL_PMIX_RANGE)) {
-            range = iptr->data.integer;
+            range = (opal_pmix_data_range_t)iptr->data.uint;
             break;
         }
     }
 
     /* pack the range */
-    if (OPAL_SUCCESS != (rc = opal_dss.pack(&req->msg, &range, 1, OPAL_INT))) {
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(&req->msg, &range, 1, OPAL_PMIX_DATA_RANGE))) {
         ORTE_ERROR_LOG(rc);
         OBJ_RELEASE(req);
         return rc;
     }
 
     /* if the range is SESSION, then set the target to the global server */
-    if (OPAL_PMIX_SESSION == range) {
+    if (OPAL_PMIX_RANGE_SESSION == range) {
         req->target = orte_pmix_server_globals.server;
     } else {
         req->target = *ORTE_PROC_MY_HNP;
@@ -250,9 +262,14 @@ int pmix_server_lookup_fn(opal_process_name_t *proc, char **keys,
         }
     }
 
-    /* if we have items, pack those too - ignore range value */
+    /* if we have items, pack those too - ignore range and timeout value */
     OPAL_LIST_FOREACH(iptr, info, opal_value_t) {
         if (0 == strcmp(iptr->key, OPAL_PMIX_RANGE)) {
+            continue;
+        }
+        if (0 == strcmp(iptr->key, OPAL_PMIX_TIMEOUT)) {
+            /* record the timeout value, but don't pack it */
+            req->timeout = iptr->data.integer;
             continue;
         }
         if (OPAL_SUCCESS != (rc = opal_dss.pack(&req->msg, &iptr, 1, OPAL_VALUE))) {
@@ -280,7 +297,7 @@ int pmix_server_unpublish_fn(opal_process_name_t *proc, char **keys,
     uint8_t cmd = ORTE_PMIX_UNPUBLISH_CMD;
     uint32_t nkeys, n;
     opal_value_t *iptr;
-    opal_pmix_data_range_t range = OPAL_PMIX_SESSION;
+    opal_pmix_data_range_t range = OPAL_PMIX_RANGE_SESSION;
 
     /* create the caddy */
     req = OBJ_NEW(pmix_server_req_t);
@@ -304,7 +321,7 @@ int pmix_server_unpublish_fn(opal_process_name_t *proc, char **keys,
     /* no help for it - need to search for range */
     OPAL_LIST_FOREACH(iptr, info, opal_value_t) {
         if (0 == strcmp(iptr->key, OPAL_PMIX_RANGE)) {
-            range = iptr->data.integer;
+            range = (opal_pmix_data_range_t)iptr->data.integer;
             break;
         }
     }
@@ -317,7 +334,7 @@ int pmix_server_unpublish_fn(opal_process_name_t *proc, char **keys,
     }
 
     /* if the range is SESSION, then set the target to the global server */
-    if (OPAL_PMIX_SESSION == range) {
+    if (OPAL_PMIX_RANGE_SESSION == range) {
         req->target = orte_pmix_server_globals.server;
     } else {
         req->target = *ORTE_PROC_MY_HNP;
@@ -340,9 +357,14 @@ int pmix_server_unpublish_fn(opal_process_name_t *proc, char **keys,
         }
     }
 
-    /* if we have items, pack those too - ignore range value */
+    /* if we have items, pack those too - ignore range and timeout value */
     OPAL_LIST_FOREACH(iptr, info, opal_value_t) {
         if (0 == strcmp(iptr->key, OPAL_PMIX_RANGE)) {
+            continue;
+        }
+        if (0 == strcmp(iptr->key, OPAL_PMIX_TIMEOUT)) {
+            /* record the timeout value, but don't pack it */
+            req->timeout = iptr->data.integer;
             continue;
         }
         if (OPAL_SUCCESS != (rc = opal_dss.pack(&req->msg, &iptr, 1, OPAL_VALUE))) {

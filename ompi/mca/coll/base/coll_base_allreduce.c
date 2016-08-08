@@ -13,7 +13,7 @@
  * Copyright (c) 2009      University of Houston. All rights reserved.
  * Copyright (c) 2013      Los Alamos National Security, LLC. All Rights
  *                         reserved.
- * Copyright (c) 2015      Research Organization for Information Science
+ * Copyright (c) 2015-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
@@ -136,7 +136,7 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
 {
     int ret, line, rank, size, adjsize, remote, distance;
     int newrank, newremote, extra_ranks;
-    char *tmpsend = NULL, *tmprecv = NULL, *tmpswap = NULL, *inplacebuf = NULL;
+    char *tmpsend = NULL, *tmprecv = NULL, *tmpswap = NULL, *inplacebuf_free = NULL, *inplacebuf;
     ompi_request_t *reqs[2] = {NULL, NULL};
     OPAL_PTRDIFF_TYPE span, gap;
 
@@ -157,8 +157,9 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
 
     /* Allocate and initialize temporary send buffer */
     span = opal_datatype_span(&dtype->super, count, &gap);
-    inplacebuf = (char*) malloc(span);
-    if (NULL == inplacebuf) { ret = -1; line = __LINE__; goto error_hndl; }
+    inplacebuf_free = (char*) malloc(span);
+    if (NULL == inplacebuf_free) { ret = -1; line = __LINE__; goto error_hndl; }
+    inplacebuf = inplacebuf_free - gap;
 
     if (MPI_IN_PLACE == sbuf) {
         ret = ompi_datatype_copy_content_same_ddt(dtype, count, inplacebuf, (char*)rbuf);
@@ -265,14 +266,14 @@ ompi_coll_base_allreduce_intra_recursivedoubling(const void *sbuf, void *rbuf,
         if (ret < 0) { line = __LINE__; goto error_hndl; }
     }
 
-    if (NULL != inplacebuf) free(inplacebuf);
+    if (NULL != inplacebuf_free) free(inplacebuf_free);
     return MPI_SUCCESS;
 
  error_hndl:
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output, "%s:%4d\tRank %d Error occurred %d\n",
                  __FILE__, line, rank, ret));
     (void)line;  // silence compiler warning
-    if (NULL != inplacebuf) free(inplacebuf);
+    if (NULL != inplacebuf_free) free(inplacebuf_free);
     return ret;
 }
 

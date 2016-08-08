@@ -339,8 +339,8 @@ static void proc_errors(int fd, short args, void *cbdata)
                                  ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), ORTE_NAME_PRINT(proc)));
             /* remove from dependent routes, if it is one */
             orte_routed.route_lost(proc);
-	    /* if all my routes and local children are gone, then terminate ourselves */
-	    if (0 == orte_routed.num_routes()) {
+            /* if all my routes and local children are gone, then terminate ourselves */
+            if (0 == orte_routed.num_routes()) {
                 for (i=0; i < orte_local_children->size; i++) {
                     if (NULL != (proct = (orte_proc_t*)opal_pointer_array_get_item(orte_local_children, i)) &&
                         ORTE_FLAG_TEST(pptr, ORTE_PROC_FLAG_ALIVE) && proct->state < ORTE_PROC_STATE_UNTERMINATED) {
@@ -357,7 +357,7 @@ static void proc_errors(int fd, short args, void *cbdata)
                                      "%s errmgr_hnp: all routes and children gone - ordering exit",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
                 ORTE_ACTIVATE_JOB_STATE(NULL, ORTE_JOB_STATE_DAEMONS_TERMINATED);
-	    } else {
+            } else {
                 OPAL_OUTPUT_VERBOSE((5, orte_errmgr_base_framework.framework_output,
                                      "%s Comm failure: %d routes remain alive",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
@@ -398,7 +398,7 @@ static void proc_errors(int fd, short args, void *cbdata)
     }
 
     /* if we were ordered to terminate, mark this proc as dead and see if
-     * any of our routes or local  children remain alive - if not, then
+     * any of our routes or local children remain alive - if not, then
      * terminate ourselves. */
     if (orte_orteds_term_ordered) {
         for (i=0; i < orte_local_children->size; i++) {
@@ -419,6 +419,14 @@ static void proc_errors(int fd, short args, void *cbdata)
     }
 
  keep_going:
+    /* if this is a continuously operating job, then there is nothing more
+     * to do - we let the job continue to run */
+    if (orte_get_attribute(&jdata->attributes, ORTE_JOB_CONTINUOUS_OP, NULL, OPAL_BOOL)) {
+        /* always mark the waitpid as having fired */
+        ORTE_ACTIVATE_PROC_STATE(&pptr->name, ORTE_PROC_STATE_WAITPID_FIRED);
+        goto cleanup;
+    }
+
     /* ensure we record the failed proc properly so we can report
      * the error once we terminate
      */
@@ -462,17 +470,34 @@ static void proc_errors(int fd, short args, void *cbdata)
                              "%s errmgr:hnp: proc %s aborted by signal",
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                              ORTE_NAME_PRINT(proc)));
-        if (!ORTE_FLAG_TEST(jdata, ORTE_JOB_FLAG_ABORTED)) {
-            jdata->state = ORTE_JOB_STATE_ABORTED_BY_SIG;
-            /* point to the first rank to cause the problem */
-            orte_set_attribute(&jdata->attributes, ORTE_JOB_ABORTED_PROC, ORTE_ATTR_LOCAL, pptr, OPAL_PTR);
-            /* retain the object so it doesn't get free'd */
-            OBJ_RETAIN(pptr);
-            ORTE_FLAG_SET(jdata, ORTE_JOB_FLAG_ABORTED);
-            ORTE_UPDATE_EXIT_STATUS(pptr->exit_code);
-            /* abnormal termination - abort, but only do it once
-             * to avoid creating a lot of confusion */
-            default_hnp_abort(jdata);
+
+        ORTE_UPDATE_EXIT_STATUS(pptr->exit_code);
+        /* track the number of non-zero exits */
+        i32 = 0;
+        i32ptr = &i32;
+        orte_get_attribute(&jdata->attributes, ORTE_JOB_NUM_NONZERO_EXIT, (void**)&i32ptr, OPAL_INT32);
+        ++i32;
+        orte_set_attribute(&jdata->attributes, ORTE_JOB_NUM_NONZERO_EXIT, ORTE_ATTR_LOCAL, i32ptr, OPAL_INT32);
+        if (orte_abort_non_zero_exit) {
+
+            if (!ORTE_FLAG_TEST(jdata, ORTE_JOB_FLAG_ABORTED)) {
+                jdata->state = ORTE_JOB_STATE_ABORTED_BY_SIG;
+                /* point to the first rank to cause the problem */
+                orte_set_attribute(&jdata->attributes, ORTE_JOB_ABORTED_PROC, ORTE_ATTR_LOCAL, pptr, OPAL_PTR);
+                /* retain the object so it doesn't get free'd */
+                OBJ_RETAIN(pptr);
+                ORTE_FLAG_SET(jdata, ORTE_JOB_FLAG_ABORTED);
+                ORTE_UPDATE_EXIT_STATUS(pptr->exit_code);
+                /* abnormal termination - abort, but only do it once
+                 * to avoid creating a lot of confusion */
+                default_hnp_abort(jdata);
+            }
+        } else {
+            /* user requested we consider this normal termination */
+            if (jdata->num_terminated >= jdata->num_procs) {
+                /* this job has terminated */
+                ORTE_ACTIVATE_JOB_STATE(jdata, ORTE_JOB_STATE_TERMINATED);
+            }
         }
         break;
 
@@ -708,8 +733,8 @@ static void default_hnp_abort(orte_job_t *jdata)
                     "-------------------------------------------------------",
                     (1 == ORTE_LOCAL_JOBID(jdata->jobid)) ? "Primary" : "Child",
                     (1 == ORTE_LOCAL_JOBID(jdata->jobid)) ? "" : ORTE_LOCAL_JOBID_PRINT(jdata->jobid),
-                    i32, (1 == i32) ? "process returned\na non-zero exit code." :
-                    "processes returned\nnon-zero exit codes.");
+                    i32, (1 == i32) ? "process returned\na non-zero exit code" :
+                    "processes returned\nnon-zero exit codes");
     }
 
     OPAL_OUTPUT_VERBOSE((1, orte_errmgr_base_framework.framework_output,

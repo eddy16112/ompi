@@ -112,12 +112,14 @@ static inline void mca_btl_ugni_alloc_post_descriptor (mca_btl_base_endpoint_t *
         (*desc)->cbdata        = cbdata;
         (*desc)->local_handle  = local_handle;
         (*desc)->endpoint      = endpoint;
+        (void) OPAL_THREAD_ADD64(&endpoint->btl->active_rdma_count, 1);
     }
 }
 
 static inline void mca_btl_ugni_return_post_descriptor (mca_btl_ugni_module_t *module,
                                                         mca_btl_ugni_post_descriptor_t *desc)
 {
+    (void) OPAL_THREAD_ADD64(&module->active_rdma_count, -1);
     opal_free_list_return (&module->post_descriptors, &desc->super);
 }
 
@@ -159,8 +161,8 @@ static inline int mca_btl_ugni_frag_alloc (mca_btl_base_endpoint_t *ep,
 static inline int mca_btl_ugni_frag_return (mca_btl_ugni_base_frag_t *frag)
 {
     if (frag->registration) {
-        frag->endpoint->btl->super.btl_mpool->mpool_deregister(frag->endpoint->btl->super.btl_mpool,
-                                                               (mca_mpool_base_registration_t *) frag->registration);
+        frag->endpoint->btl->rcache->rcache_deregister (frag->endpoint->btl->rcache,
+                                                        (mca_rcache_base_registration_t *) frag->registration);
         frag->registration = NULL;
     }
 

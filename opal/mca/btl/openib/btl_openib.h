@@ -18,7 +18,7 @@
  * Copyright (c) 2009-2010 Oracle and/or its affiliates.  All rights reserved.
  * Copyright (c) 2013-2014 NVIDIA Corporation.  All rights reserved.
  * Copyright (c) 2014      Bull SAS.  All rights reserved.
- * Copyright (c) 2015      Research Organization for Information Science
+ * Copyright (c) 2015-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
@@ -45,6 +45,7 @@
 #include "opal/mca/event/event.h"
 #include "opal/threads/threads.h"
 #include "opal/mca/btl/btl.h"
+#include "opal/mca/rcache/rcache.h"
 #include "opal/mca/mpool/mpool.h"
 #include "opal/mca/btl/base/btl_base_error.h"
 #include "opal/mca/btl/base/base.h"
@@ -80,6 +81,12 @@ BEGIN_C_DECLS
 /**
  * Infiniband (IB) BTL component.
  */
+
+enum {
+    BTL_OPENIB_HP_CQ,
+    BTL_OPENIB_LP_CQ,
+    BTL_OPENIB_MAX_CQ,
+};
 
 typedef enum {
     MCA_BTL_OPENIB_TRANSPORT_IB,
@@ -184,8 +191,11 @@ struct mca_btl_openib_component_t {
     opal_mutex_t                            ib_lock;
     /**< lock for accessing module state */
 
-    char* ib_mpool_name;
-    /**< name of ib memory pool */
+    char* ib_mpool_hints;
+    /**< hints for selecting an mpool component */
+
+    char *ib_rcache_name;
+    /**< name of ib registration cache */
 
     uint8_t num_pp_qps;          /**< number of pp qp's */
     uint8_t num_srq_qps;         /**< number of srq qp's */
@@ -202,7 +212,7 @@ struct mca_btl_openib_component_t {
     uint32_t reg_mru_len;    /**< Length of the registration cache most recently used list */
     uint32_t use_srq;        /**< Use the Shared Receive Queue (SRQ mode) */
 
-    uint32_t ib_cq_size[2];  /**< Max outstanding CQE on the CQ */
+    uint32_t ib_cq_size[BTL_OPENIB_MAX_CQ];  /**< Max outstanding CQE on the CQ */
 
     int      ib_max_inline_data; /**< Max size of inline data */
     unsigned int ib_pkey_val;
@@ -291,6 +301,9 @@ struct mca_btl_openib_component_t {
     char* default_recv_qps;
     /** GID index to use */
     int gid_index;
+    /*  Whether we want to allow connecting processes from different subnets.
+     *  set to 'no' by default */
+    bool allow_different_subnets;
     /** Whether we want a dynamically resizing srq, enabled by default */
     bool enable_srq_resize;
     bool allow_max_memory_registration;
@@ -310,6 +323,7 @@ struct mca_btl_openib_component_t {
 #if HAVE_DECL_IBV_LINK_LAYER_ETHERNET
     bool rroce_enable;
 #endif
+    unsigned int num_default_gid_btls; /* numbers of btl in the default subnet */
 }; typedef struct mca_btl_openib_component_t mca_btl_openib_component_t;
 
 OPAL_MODULE_DECLSPEC extern mca_btl_openib_component_t mca_btl_openib_component;
@@ -371,9 +385,10 @@ typedef struct mca_btl_openib_device_t {
 #endif
     struct ibv_device_attr ib_dev_attr;
     struct ibv_pd *ib_pd;
-    struct ibv_cq *ib_cq[2];
-    uint32_t cq_size[2];
+    struct ibv_cq *ib_cq[BTL_OPENIB_MAX_CQ];
+    uint32_t cq_size[BTL_OPENIB_MAX_CQ];
     mca_mpool_base_module_t *mpool;
+    mca_rcache_base_module_t *rcache;
     /* MTU for this device */
     uint32_t mtu;
     /* Whether this device supports eager RDMA */
@@ -502,7 +517,7 @@ struct mca_btl_base_registration_handle_t {
 };
 
 struct mca_btl_openib_reg_t {
-    mca_mpool_base_registration_t base;
+    mca_rcache_base_registration_t base;
     struct ibv_mr *mr;
     mca_btl_base_registration_handle_t btl_handle;
 };
@@ -854,11 +869,6 @@ extern int mca_btl_openib_ft_event(int state);
  */
 void mca_btl_openib_show_init_error(const char *file, int line,
                                     const char *func, const char *dev);
-
-#define BTL_OPENIB_HP_CQ 0
-#define BTL_OPENIB_LP_CQ 1
-
-
 /**
  * Post to Shared Receive Queue with certain priority
  *

@@ -178,9 +178,8 @@ posix_runtime_query(mca_base_module_t **module,
         /* free up allocated resources before we return */
         if (0 != shm_unlink(tmp_buff)) {
             int err = errno;
-            char hn[MAXHOSTNAMELEN];
-            gethostname(hn, MAXHOSTNAMELEN - 1);
-            hn[MAXHOSTNAMELEN - 1] = '\0';
+            char hn[OPAL_MAXHOSTNAMELEN];
+            gethostname(hn, sizeof(hn));
             opal_show_help("help-opal-shmem-posix.txt", "sys call fail", 1,
                            hn, "shm_unlink(2)", "", strerror(err), err);
             /* something strange happened, so consider this a run-time test
@@ -201,13 +200,6 @@ posix_runtime_query(mca_base_module_t **module,
 static int
 posix_query(mca_base_module_t **module, int *priority)
 {
-    /* if we are in a container, then we must disqualify ourselves */
-    if (NULL != getenv("OPAL_PROC_CONTAINER")) {
-        *priority = 0;
-        *module = NULL;
-        return OPAL_ERROR;
-    }
-
     *priority = mca_shmem_posix_component.priority;
     *module = (mca_base_module_t *)&opal_shmem_posix_module.super;
     return OPAL_SUCCESS;

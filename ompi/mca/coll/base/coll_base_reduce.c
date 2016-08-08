@@ -12,7 +12,7 @@
  *                         All rights reserved.
  * Copyright (c) 2013      Los Alamos National Security, LLC. All Rights
  *                         reserved.
- * Copyright (c) 2015      Research Organization for Information Science
+ * Copyright (c) 2015-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
@@ -807,6 +807,7 @@ int ompi_coll_base_reduce_intra_in_order_binary( const void *sendbuf, void *recv
     int ret, rank, size, io_root, segcount = count;
     void *use_this_sendbuf = NULL;
     void *use_this_recvbuf = NULL;
+    char *tmpbuf_free = NULL;
     size_t typelng;
     mca_coll_base_module_t *base_module = (mca_coll_base_module_t*) module;
     mca_coll_base_comm_t *data = base_module->base_data;
@@ -837,24 +838,26 @@ int ompi_coll_base_reduce_intra_in_order_binary( const void *sendbuf, void *recv
     use_this_recvbuf = recvbuf;
     if (io_root != root) {
         ptrdiff_t dsize, gap;
-        char *tmpbuf = NULL;
+        char *tmpbuf;
 
         dsize = opal_datatype_span(&datatype->super, count, &gap);
 
         if ((root == rank) && (MPI_IN_PLACE == sendbuf)) {
-            tmpbuf = (char *) malloc(dsize);
-            if (NULL == tmpbuf) {
+            tmpbuf_free = (char *) malloc(dsize);
+            if (NULL == tmpbuf_free) {
                 return MPI_ERR_INTERN;
             }
+            tmpbuf = tmpbuf_free - gap;
             ompi_datatype_copy_content_same_ddt(datatype, count,
                                                 (char*)tmpbuf,
                                                 (char*)recvbuf);
             use_this_sendbuf = tmpbuf;
         } else if (io_root == rank) {
-            tmpbuf = (char *) malloc(dsize);
-            if (NULL == tmpbuf) {
+            tmpbuf_free = (char *) malloc(dsize);
+            if (NULL == tmpbuf_free) {
                 return MPI_ERR_INTERN;
             }
+            tmpbuf = tmpbuf_free - gap;
             use_this_recvbuf = tmpbuf;
         }
     }
@@ -874,9 +877,6 @@ int ompi_coll_base_reduce_intra_in_order_binary( const void *sendbuf, void *recv
                                     MCA_COLL_BASE_TAG_REDUCE, comm,
                                     MPI_STATUS_IGNORE));
             if (MPI_SUCCESS != ret) { return ret; }
-            if (MPI_IN_PLACE == sendbuf) {
-                free(use_this_sendbuf);
-            }
 
         } else if (io_root == rank) {
             /* Send result from use_this_recvbuf to root */
@@ -884,8 +884,10 @@ int ompi_coll_base_reduce_intra_in_order_binary( const void *sendbuf, void *recv
                                     MCA_COLL_BASE_TAG_REDUCE,
                                     MCA_PML_BASE_SEND_STANDARD, comm));
             if (MPI_SUCCESS != ret) { return ret; }
-            free(use_this_recvbuf);
         }
+    }
+    if (NULL != tmpbuf_free) {
+        free(tmpbuf_free);
     }
 
     return MPI_SUCCESS;
@@ -922,7 +924,7 @@ ompi_coll_base_reduce_intra_basic_linear(const void *sbuf, void *rbuf, int count
     ptrdiff_t extent, dsize, gap;
     char *free_buffer = NULL;
     char *pml_buffer = NULL;
-    char *inplace_temp = NULL;
+    char *inplace_temp_free = NULL;
     char *inbuf;
 
     /* Initialize */
@@ -944,18 +946,18 @@ ompi_coll_base_reduce_intra_basic_linear(const void *sbuf, void *rbuf, int count
 
     if (MPI_IN_PLACE == sbuf) {
         sbuf = rbuf;
-        inplace_temp = (char*)malloc(dsize);
-        if (NULL == inplace_temp) {
+        inplace_temp_free = (char*)malloc(dsize);
+        if (NULL == inplace_temp_free) {
             return OMPI_ERR_OUT_OF_RESOURCE;
         }
-        rbuf = inplace_temp - gap;
+        rbuf = inplace_temp_free - gap;
     }
 
     if (size > 1) {
         free_buffer = (char*)malloc(dsize);
         if (NULL == free_buffer) {
-            if (NULL != inplace_temp) {
-                free(inplace_temp);
+            if (NULL != inplace_temp_free) {
+                free(inplace_temp_free);
             }
             return OMPI_ERR_OUT_OF_RESOURCE;
         }
@@ -1002,9 +1004,9 @@ ompi_coll_base_reduce_intra_basic_linear(const void *sbuf, void *rbuf, int count
         ompi_op_reduce(op, inbuf, rbuf, count, dtype);
     }
 
-    if (NULL != inplace_temp) {
-        err = ompi_datatype_copy_content_same_ddt(dtype, count, (char*)sbuf, inplace_temp);
-        free(inplace_temp);
+    if (NULL != inplace_temp_free) {
+        err = ompi_datatype_copy_content_same_ddt(dtype, count, (char*)sbuf, rbuf);
+        free(inplace_temp_free);
     }
     if (NULL != free_buffer) {
         free(free_buffer);

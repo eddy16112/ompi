@@ -29,21 +29,22 @@ typedef uint8_t orte_app_context_flags_t;
 
 
 /* APP_CONTEXT ATTRIBUTE KEYS */
-#define ORTE_APP_HOSTFILE         1    // string  - hostfile
-#define ORTE_APP_ADD_HOSTFILE     2    // string  - hostfile to be added
-#define ORTE_APP_DASH_HOST        3    // string  - hosts specified with -host option
-#define ORTE_APP_ADD_HOST         4    // string  - hosts to be added
-#define ORTE_APP_USER_CWD         5    // bool  - user specified cwd
-#define ORTE_APP_SSNDIR_CWD       6    // bool  - use session dir as cwd
-#define ORTE_APP_PRELOAD_BIN      7    // bool  - move binaries to remote nodes prior to exec
-#define ORTE_APP_PRELOAD_FILES    8    // string  - files to be moved to remote nodes prior to exec
-#define ORTE_APP_SSTORE_LOAD      9    // string
-#define ORTE_APP_RECOV_DEF       10    // bool  - whether or not a recovery policy was defined
-#define ORTE_APP_MAX_RESTARTS    11    // int32 - max number of times a process can be restarted
-#define ORTE_APP_MIN_NODES       12    // int64 - min number of nodes required
-#define ORTE_APP_MANDATORY       13    // bool - flag if nodes requested in -host are "mandatory" vs "optional"
-#define ORTE_APP_MAX_PPN         14    // uint32 - maximum number of procs/node for this app
-#define ORTE_APP_PREFIX_DIR      15    // string - prefix directory for this app, if override necessary
+#define ORTE_APP_HOSTFILE            1    // string  - hostfile
+#define ORTE_APP_ADD_HOSTFILE        2    // string  - hostfile to be added
+#define ORTE_APP_DASH_HOST           3    // string  - hosts specified with -host option
+#define ORTE_APP_ADD_HOST            4    // string  - hosts to be added
+#define ORTE_APP_USER_CWD            5    // bool  - user specified cwd
+#define ORTE_APP_SSNDIR_CWD          6    // bool  - use session dir as cwd
+#define ORTE_APP_PRELOAD_BIN         7    // bool  - move binaries to remote nodes prior to exec
+#define ORTE_APP_PRELOAD_FILES       8    // string  - files to be moved to remote nodes prior to exec
+#define ORTE_APP_SSTORE_LOAD         9    // string
+#define ORTE_APP_RECOV_DEF          10    // bool  - whether or not a recovery policy was defined
+#define ORTE_APP_MAX_RESTARTS       11    // int32 - max number of times a process can be restarted
+#define ORTE_APP_MIN_NODES          12    // int64 - min number of nodes required
+#define ORTE_APP_MANDATORY          13    // bool - flag if nodes requested in -host are "mandatory" vs "optional"
+#define ORTE_APP_MAX_PPN            14    // uint32 - maximum number of procs/node for this app
+#define ORTE_APP_PREFIX_DIR         15    // string - prefix directory for this app, if override necessary
+#define ORTE_APP_NO_CACHEDIR        16    // bool - flag that a cache dir is not to be specified for a Singularity container
 
 #define ORTE_APP_MAX_KEY        100
 
@@ -109,7 +110,6 @@ typedef uint16_t orte_job_flags_t;
 #define ORTE_JOB_SPIN_FOR_DEBUG         (ORTE_JOB_START_KEY + 18)    // bool - job consists of continuously operating apps
 #define ORTE_JOB_CONTINUOUS_OP          (ORTE_JOB_START_KEY + 19)    // bool - recovery policy defined for job
 #define ORTE_JOB_RECOVER_DEFINED        (ORTE_JOB_START_KEY + 20)    // bool - recovery policy has been defined
-#define ORTE_JOB_ENABLE_RECOVERY        (ORTE_JOB_START_KEY + 21)    // bool - enable recovery of these processes
 #define ORTE_JOB_NON_ORTE_JOB           (ORTE_JOB_START_KEY + 22)    // bool - non-orte job
 #define ORTE_JOB_STDOUT_TARGET          (ORTE_JOB_START_KEY + 23)    // orte_jobid_t - job that is to receive the stdout (on its stdin) from this one
 #define ORTE_JOB_POWER                  (ORTE_JOB_START_KEY + 24)    // string - power setting for nodes in job
@@ -137,6 +137,7 @@ typedef uint16_t orte_job_flags_t;
 #define ORTE_JOB_MERGE_STDERR_STDOUT    (ORTE_JOB_START_KEY + 46)    // bool - merge stderr into stdout stream
 #define ORTE_JOB_TAG_OUTPUT             (ORTE_JOB_START_KEY + 47)    // bool - tag stdout/stderr
 #define ORTE_JOB_TIMESTAMP_OUTPUT       (ORTE_JOB_START_KEY + 48)    // bool - timestamp stdout/stderr
+#define ORTE_JOB_MULTI_DAEMON_SIM       (ORTE_JOB_START_KEY + 49)    // bool - multiple daemons/node to simulate large cluster
 
 #define ORTE_JOB_MAX_KEY   300
 

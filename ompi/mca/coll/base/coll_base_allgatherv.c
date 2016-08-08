@@ -13,7 +13,7 @@
  * Copyright (c) 2009      University of Houston. All rights reserved.
  * Copyright (c) 2013      Los Alamos National Security, LLC. All Rights
  *                         reserved.
- * Copyright (c) 2015      Research Organization for Information Science
+ * Copyright (c) 2015-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
  *
@@ -526,6 +526,10 @@ int ompi_coll_base_allgatherv_intra_two_procs(const void *sbuf, int scount,
     OPAL_OUTPUT((ompi_coll_base_framework.framework_output,
                  "ompi_coll_base_allgatherv_intra_two_procs rank %d", rank));
 
+    if (2 != ompi_comm_size(comm)) {
+        return MPI_ERR_UNSUPPORTED_OPERATION;
+    }
+
     err = ompi_datatype_get_extent (sdtype, &lb, &sext);
     if (MPI_SUCCESS != err) { line = __LINE__; goto err_hndl; }
 
@@ -625,13 +629,14 @@ ompi_coll_base_allgatherv_intra_basic_default(const void *sbuf, int scount,
         for (i = 0; i < rank; ++i) {
             send_buf += ((ptrdiff_t)rcounts[i] * extent);
         }
+        scount = rcounts[rank];
     } else {
         send_buf = (char*)sbuf;
         send_type = sdtype;
     }
 
     err = comm->c_coll.coll_gatherv(send_buf,
-                                    rcounts[rank], send_type,rbuf,
+                                    scount, send_type,rbuf,
                                     rcounts, disps, rdtype, 0,
                                     comm, comm->c_coll.coll_gatherv_module);
     if (MPI_SUCCESS != err) {

@@ -17,7 +17,7 @@
  * Copyright (c) 2006-2007 Voltaire All rights reserved.
  * Copyright (c) 2009-2010 Oracle and/or its affiliates.  All rights reserved.
  * Copyright (c) 2013-2015 NVIDIA Corporation.  All rights reserved.
- * Copyright (c) 2014-2015 Research Organization for Information Science
+ * Copyright (c) 2014-2016 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2014      Intel, Inc. All rights reserved.
  * $COPYRIGHT$
@@ -316,9 +316,12 @@ int btl_openib_register_mca_params(void)
                   "(must be >= 1)",
                   32, &mca_btl_openib_component.ib_free_list_inc,
                   REGINT_GE_ONE));
-    CHECK(reg_string("mpool", NULL,
-                     "Name of the memory pool to be used (it is unlikely that you will ever want to change this)",
-                     "grdma", &mca_btl_openib_component.ib_mpool_name,
+    CHECK(reg_string("mpool_hints", NULL, "hints for selecting a memory pool (default: none)",
+                     NULL, &mca_btl_openib_component.ib_mpool_hints,
+                     0));
+    CHECK(reg_string("rcache", NULL,
+                     "Name of the registration cache to be used (it is unlikely that you will ever want to change this)",
+                     "grdma", &mca_btl_openib_component.ib_rcache_name,
                      0));
     CHECK(reg_int("reg_mru_len", NULL,
                   "Length of the registration cache most recently used list "
@@ -704,19 +707,10 @@ int btl_openib_register_mca_params(void)
                   0, &mca_btl_openib_component.gid_index,
                   REGINT_GE_ZERO));
 
-#if MEMORY_LINUX_MALLOC_ALIGN_ENABLED
-    tmp = mca_base_var_find ("opal", "memory", "linux", "memalign");
-    if (0 <= tmp) {
-        (void) mca_base_var_register_synonym(tmp, "opal", "btl", "openib", "memalign",
-                                             MCA_BASE_VAR_SYN_FLAG_DEPRECATED);
-    }
-
-    tmp = mca_base_var_find ("opal", "memory", "linux", "memalign_threshold");
-    if (0 <= tmp) {
-        (void) mca_base_var_register_synonym(tmp, "opal", "btl", "openib", "memalign_threshold",
-                                             MCA_BASE_VAR_SYN_FLAG_DEPRECATED);
-    }
-#endif /* MEMORY_LINUX_MALLOC_ALIGN_ENABLED */
+    CHECK(reg_bool("allow_different_subnets", NULL,
+                   "Allow connecting processes from different IB subnets."
+                   "(0 = do not allow; 1 = allow)",
+                   false, &mca_btl_openib_component.allow_different_subnets));
 
     /* Register any MCA params for the connect pseudo-components */
     if (OPAL_SUCCESS == ret) {

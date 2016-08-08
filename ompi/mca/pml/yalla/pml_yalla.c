@@ -184,6 +184,8 @@ int mca_pml_yalla_init(void)
     OBJ_CONSTRUCT(&ompi_pml_yalla.convs, mca_pml_yalla_freelist_t);
 
     opal_progress_register(mca_pml_yalla_progress);
+    
+    ompi_pml_yalla.super.pml_flags |= MCA_PML_BASE_FLAG_REQUIRE_WORLD;
 
     PML_YALLA_VERBOSE(2, "created mxm context %p ep %p", (void *)ompi_pml_yalla.mxm_context,
                       (void *)ompi_pml_yalla.mxm_ep);
@@ -473,10 +475,8 @@ int mca_pml_yalla_isend(const void *buf, size_t count, ompi_datatype_t *datatype
 
     if (mode == MCA_PML_BASE_SEND_BUFFERED) {
         rc = mca_pml_yalla_bsend(&sreq->mxm);
-        OPAL_THREAD_LOCK(&ompi_request_lock);
         sreq->super.ompi.req_status.MPI_ERROR = rc;
         ompi_request_complete(&sreq->super.ompi, true);
-        OPAL_THREAD_UNLOCK(&ompi_request_lock);
         *request = &sreq->super.ompi;
         return rc;
     }
@@ -681,7 +681,6 @@ int mca_pml_yalla_mrecv(void *buf, size_t count, ompi_datatype_t *datatype,
 int mca_pml_yalla_start(size_t count, ompi_request_t** requests)
 {
     mca_pml_yalla_base_request_t *req;
-    mca_pml_yalla_send_request_t *sreq;
     mxm_error_t error;
     size_t i;
     int rc;
@@ -696,17 +695,17 @@ int mca_pml_yalla_start(size_t count, ompi_request_t** requests)
 
         PML_YALLA_ASSERT(req->ompi.req_state != OMPI_REQUEST_INVALID);
         PML_YALLA_RESET_OMPI_REQ(&req->ompi, OMPI_REQUEST_ACTIVE);
-        PML_YALLA_RESET_PML_REQ(req);
 
         if (req->flags & MCA_PML_YALLA_REQUEST_FLAG_SEND) {
+            mca_pml_yalla_send_request_t *sreq;
             sreq = (mca_pml_yalla_send_request_t *)req;
+            PML_YALLA_RESET_PML_REQ(req, PML_YALLA_MXM_REQBASE(sreq));
+
             if (req->flags & MCA_PML_YALLA_REQUEST_FLAG_BSEND) {
                 PML_YALLA_VERBOSE(8, "start bsend request %p", (void *)sreq);
                 rc = mca_pml_yalla_bsend(&sreq->mxm);
-                OPAL_THREAD_LOCK(&ompi_request_lock);
                 sreq->super.ompi.req_status.MPI_ERROR = rc;
                 ompi_request_complete(&sreq->super.ompi, true);
-                OPAL_THREAD_UNLOCK(&ompi_request_lock);
                 if (OMPI_SUCCESS != rc) {
                     return rc;
                 }
@@ -718,8 +717,12 @@ int mca_pml_yalla_start(size_t count, ompi_request_t** requests)
                 }
             }
         } else {
+            mca_pml_yalla_recv_request_t *rreq;
+            rreq = (mca_pml_yalla_recv_request_t *)req;
+            PML_YALLA_RESET_PML_REQ(req, PML_YALLA_MXM_REQBASE(rreq));
+
             PML_YALLA_VERBOSE(8, "start recv request %p", (void *)req);
-            error = mxm_req_recv(&((mca_pml_yalla_recv_request_t *)req)->mxm);
+            error = mxm_req_recv(&rreq->mxm);
             if (MXM_OK != error) {
                 return OMPI_ERROR;
             }

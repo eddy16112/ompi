@@ -1,11 +1,11 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2009-2015 Cisco Systems, Inc.  All rights reserved.
+# Copyright (c) 2009-2016 Cisco Systems, Inc.  All rights reserved.
 # Copyright (c) 2010      Oracle and/or its affiliates.  All rights reserved.
 # Copyright (c) 2013      Mellanox Technologies, Inc.
 #                         All rights reserved.
 # Copyright (c) 2013-2014 Intel, Inc.  All rights reserved.
-# Copyright (c) 2015      Research Organization for Information Science
+# Copyright (c) 2015-2016 Research Organization for Information Science
 #                         and Technology (RIST). All rights reserved.
 # Copyright (c) 2015      IBM Corporation.  All rights reserved.
 #
@@ -901,9 +901,14 @@ sub patch_autotools_output {
     # enough Libtool that dosn't need this patch.  But don't alarm the
     # user and make them think that autogen failed if this patch fails --
     # make the errors be silent.
+    # Also patch ltmain.sh for NAG compiler
     if (-f "config/ltmain.sh") {
         verbose "$indent_str"."Patching PGI compiler version numbers in ltmain.sh\n";
         system("$patch_prog -N -p0 < $topdir/config/ltmain_pgi_tp.diff >/dev/null 2>&1");
+        unlink("config/ltmain.sh.rej");
+
+        verbose "$indent_str"."Patching \"-pthread\" option for NAG compiler in ltmain.sh\n";
+        system("$patch_prog -N -p0 < $topdir/config/ltmain_nag_pthread.diff >/dev/null 2>&1");
         unlink("config/ltmain.sh.rej");
     }
 
@@ -977,6 +982,31 @@ sub patch_autotools_output {
         $c =~ s/$search_string/$replace_string/;
     }
 
+    foreach my $tag (("", "_FC")) {
+
+        # We have to change the search pattern and substitution on each
+        # iteration to take into account the tag changing
+        my $search_string = 'lf95\052.*# Lahey Fortran 8.1\n\s+' .
+            "whole_archive_flag_spec${tag}=" . '\n\s+' .
+            "tmp_sharedflag='--shared' ;;" . '\n\s+' .
+            'xl';
+        my $replace_string = "lf95*)				# Lahey Fortran 8.1
+	  whole_archive_flag_spec${tag}=
+	  tmp_sharedflag='--shared' ;;
+	nagfor*)			# NAGFOR 5.3
+	  tmp_sharedflag='-Wl,-shared';;
+	xl";
+
+        push(@verbose_out, $indent_str . "Patching configure for NAG compiler ($tag)\n");
+        $c =~ s/$search_string/$replace_string/;
+    }
+
+    # Oracle has apparently begun (as of 12.5-beta) removing the "Sun" branding.
+    # So this patch (cumulative over the previous one) is required.
+    push(@verbose_out, $indent_str . "Patching configure for Oracle Studio Fortran version strings\n");
+    $c =~ s/\*Sun\*Fortran\*\)/*Sun*Fortran* | *Studio*Fortran*)/g;
+    $c =~ s/\*Sun\\ F\*\)(.*\n\s+tmp_sharedflag=)/*Sun\\ F* | *Studio*Fortran*)$1/g;
+
     # See http://git.savannah.gnu.org/cgit/libtool.git/commit/?id=v2.2.6-201-g519bf91 for details
     # Note that this issue was fixed in LT 2.2.8, however most distros are still using 2.2.6b
 
@@ -1001,9 +1031,9 @@ sub patch_autotools_output {
     # https://github.com/open-mpi/ompi/issues/751
     push(@verbose_out, $indent_str . "Patching configure for libtool.m4 bug\n");
     # patch for libtool < 2.4.3
-    $c =~ s/# Some compilers place space between "-{L,R}" and the path.\n       # Remove the space.\n       if test \$p = \"-L\" \|\|/# Some compilers place space between "-{L,-l,R}" and the path.\n       # Remove the spaces.\n       if test \$p = \"-L\" \|\|\n          test \$p = \"-l\" \|\|/g;
+    $c =~ s/# Some compilers place space between "-\{L,R\}" and the path.\n       # Remove the space.\n       if test \$p = \"-L\" \|\|/# Some compilers place space between "-\{L,-l,R\}" and the path.\n       # Remove the spaces.\n       if test \$p = \"-L\" \|\|\n          test \$p = \"-l\" \|\|/g;
     # patch for libtool >= 2.4.3
-    $c =~ s/# Some compilers place space between "-{L,R}" and the path.\n       # Remove the space.\n       if test x-L = \"\$p\" \|\|\n          test x-R = \"\$p\"\; then/# Some compilers place space between "-{L,-l,R}" and the path.\n       # Remove the spaces.\n       if test x-L = \"x\$p\" \|\|\n          test x-l = \"x\$p\" \|\|\n          test x-R = \"x\$p\"\; then/g;
+    $c =~ s/# Some compilers place space between "-\{L,R\}" and the path.\n       # Remove the space.\n       if test x-L = \"\$p\" \|\|\n          test x-R = \"\$p\"\; then/# Some compilers place space between "-\{L,-l,R\}" and the path.\n       # Remove the spaces.\n       if test x-L = \"x\$p\" \|\|\n          test x-l = \"x\$p\" \|\|\n          test x-R = \"x\$p\"\; then/g;
 
     # Only write out verbose statements and a new configure if the
     # configure content actually changed

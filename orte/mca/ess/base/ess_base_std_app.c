@@ -12,7 +12,7 @@
  * Copyright (c) 2010-2012 Oak Ridge National Labs.  All rights reserved.
  * Copyright (c) 2011-2013 Los Alamos National Security, LLC.  All rights
  *                         reserved.
- * Copyright (c) 2013-2015 Intel, Inc.  All rights reserved.
+ * Copyright (c) 2013-2016 Intel, Inc.  All rights reserved.
  * Copyright (c) 2014      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2015 Cisco Systems, Inc.  All rights reserved.
@@ -46,11 +46,14 @@
 #include "opal/util/proc.h"
 #include "opal/runtime/opal.h"
 #include "opal/runtime/opal_cr.h"
-#include "opal/runtime/opal_progress_threads.h"
 
+#include "orte/mca/rml/base/base.h"
+#include "orte/mca/routed/base/base.h"
 #include "orte/mca/errmgr/errmgr.h"
 #include "orte/mca/dfs/base/base.h"
 #include "orte/mca/grpcomm/base/base.h"
+#include "orte/mca/oob/base/base.h"
+#include "orte/mca/rml/rml.h"
 #include "orte/mca/odls/odls_types.h"
 #include "orte/mca/filem/base/base.h"
 #include "orte/mca/errmgr/base/base.h"
@@ -69,8 +72,6 @@
 #include "orte/runtime/orte_wait.h"
 
 #include "orte/mca/ess/base/base.h"
-
-static bool progress_thread_running = false;
 
 int orte_ess_base_app_setup(bool db_restrict_local)
 {
@@ -109,10 +110,6 @@ int orte_ess_base_app_setup(bool db_restrict_local)
         opal_proc_local_set(&orte_process_info.super);
     }
 
-    /* get an async event base - we use the opal_async one so
-     * we don't startup extra threads if not needed */
-    orte_event_base = opal_progress_thread_init(NULL);
-    progress_thread_running = true;
     /* open and setup the state machine */
     if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_state_base_framework, 0))) {
         ORTE_ERROR_LOG(ret);
@@ -141,7 +138,7 @@ int orte_ess_base_app_setup(bool db_restrict_local)
                              orte_process_info.nodename));
         if (ORTE_SUCCESS != (ret = orte_session_dir(true,
                                                     orte_process_info.tmpdir_base,
-                                                    orte_process_info.nodename, NULL,
+                                                    orte_process_info.nodename,
                                                     ORTE_PROC_MY_NAME))) {
             ORTE_ERROR_LOG(ret);
             error = "orte_session_dir";
@@ -176,14 +173,73 @@ int orte_ess_base_app_setup(bool db_restrict_local)
         }
         OBJ_DESTRUCT(&kv);
     }
-
+    /* Setup the communication infrastructure */
+    /*
+     * OOB Layer
+     */
+    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_oob_base_framework, 0))) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_oob_base_open";
+        goto error;
+    }
+    if (ORTE_SUCCESS != (ret = orte_oob_base_select())) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_oob_base_select";
+        goto error;
+    }
+    /* Runtime Messaging Layer */
+    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_rml_base_framework, 0))) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_rml_base_open";
+        goto error;
+    }
+    if (ORTE_SUCCESS != (ret = orte_rml_base_select())) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_rml_base_select";
+        goto error;
+    }
     /* setup the errmgr */
     if (ORTE_SUCCESS != (ret = orte_errmgr_base_select())) {
         ORTE_ERROR_LOG(ret);
         error = "orte_errmgr_base_select";
         goto error;
     }
-
+    /* Routed system */
+    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_routed_base_framework, 0))) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_routed_base_open";
+        goto error;
+    }
+    if (ORTE_SUCCESS != (ret = orte_routed_base_select())) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_routed_base_select";
+        goto error;
+    }
+    /*
+     * Group communications
+     */
+    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_grpcomm_base_framework, 0))) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_grpcomm_base_open";
+        goto error;
+    }
+    if (ORTE_SUCCESS != (ret = orte_grpcomm_base_select())) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_grpcomm_base_select";
+        goto error;
+    }
+    /* enable communication via the rml */
+    if (ORTE_SUCCESS != (ret = orte_rml.enable_comm())) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_rml.enable_comm";
+        goto error;
+    }
+    /* setup the routed info  */
+    if (ORTE_SUCCESS != (ret = orte_routed.init_routes(ORTE_PROC_MY_NAME->jobid, NULL))) {
+        ORTE_ERROR_LOG(ret);
+        error = "orte_routed.init_routes";
+        goto error;
+    }
 #if OPAL_ENABLE_FT_CR == 1
     /*
      * Setup the SnapC
@@ -235,12 +291,6 @@ int orte_ess_base_app_setup(bool db_restrict_local)
     }
     return ORTE_SUCCESS;
  error:
-    if (!progress_thread_running) {
-        /* can't send the help message, so ensure it
-         * comes out locally
-         */
-        orte_show_help_finalize();
-    }
     orte_show_help("help-orte-runtime.txt",
                    "orte_init:startup:internal-failure",
                    true, error, ORTE_ERROR_NAME(ret), ret);
@@ -260,16 +310,16 @@ int orte_ess_base_app_finalize(void)
     (void) mca_base_framework_close(&orte_filem_base_framework);
     (void) mca_base_framework_close(&orte_errmgr_base_framework);
 
+    /* now can close the rml and its friendly group comm */
+    (void) mca_base_framework_close(&orte_grpcomm_base_framework);
     (void) mca_base_framework_close(&orte_dfs_base_framework);
+    (void) mca_base_framework_close(&orte_routed_base_framework);
+
+    (void) mca_base_framework_close(&orte_rml_base_framework);
+    (void) mca_base_framework_close(&orte_oob_base_framework);
     (void) mca_base_framework_close(&orte_state_base_framework);
 
     orte_session_dir_finalize(ORTE_PROC_MY_NAME);
-
-    /* release the event base */
-    if (progress_thread_running) {
-        opal_progress_thread_finalize(NULL);
-        progress_thread_running = false;
-    }
 
     return ORTE_SUCCESS;
 }
@@ -315,7 +365,7 @@ void orte_ess_base_app_abort(int status, bool report)
      * the message if routing is enabled as this indicates we
      * have someone to send to
      */
-    if (report && orte_create_session_dirs) {
+    if (report && orte_routing_is_enabled && orte_create_session_dirs) {
         myfile = opal_os_path(false, orte_process_info.proc_session_dir, "aborted", NULL);
         fd = open(myfile, O_CREAT, S_IRUSR);
         close(fd);

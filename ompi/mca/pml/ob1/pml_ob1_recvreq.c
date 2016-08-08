@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2013 The University of Tennessee and The University
+ * Copyright (c) 2004-2016 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2008 High Performance Computing Center Stuttgart,
@@ -71,28 +71,26 @@ static int mca_pml_ob1_recv_request_free(struct ompi_request_t** request)
 {
     mca_pml_ob1_recv_request_t* recvreq = *(mca_pml_ob1_recv_request_t**)request;
 
-    assert( false == recvreq->req_recv.req_base.req_free_called );
+    if(false == recvreq->req_recv.req_base.req_free_called){
 
-    OPAL_THREAD_LOCK(&ompi_request_lock);
-    recvreq->req_recv.req_base.req_free_called = true;
+        recvreq->req_recv.req_base.req_free_called = true;
+        PERUSE_TRACE_COMM_EVENT( PERUSE_COMM_REQ_NOTIFY,
+                                 &(recvreq->req_recv.req_base), PERUSE_RECV );
 
-    PERUSE_TRACE_COMM_EVENT( PERUSE_COMM_REQ_NOTIFY,
-                             &(recvreq->req_recv.req_base), PERUSE_RECV );
+        if( true == recvreq->req_recv.req_base.req_pml_complete ) {
+            /* make buffer defined when the request is compeleted,
+               and before releasing the objects. */
+            MEMCHECKER(
+                memchecker_call(&opal_memchecker_base_mem_defined,
+                                recvreq->req_recv.req_base.req_addr,
+                                recvreq->req_recv.req_base.req_count,
+                                recvreq->req_recv.req_base.req_datatype);
+            );
 
-    if( true == recvreq->req_recv.req_base.req_pml_complete ) {
-        /* make buffer defined when the request is compeleted,
-           and before releasing the objects. */
-        MEMCHECKER(
-            memchecker_call(&opal_memchecker_base_mem_defined,
-                            recvreq->req_recv.req_base.req_addr,
-                            recvreq->req_recv.req_base.req_count,
-                            recvreq->req_recv.req_base.req_datatype);
-        );
+            MCA_PML_OB1_RECV_REQUEST_RETURN( recvreq );
+        }
 
-        MCA_PML_OB1_RECV_REQUEST_RETURN( recvreq );
     }
-
-    OPAL_THREAD_UNLOCK(&ompi_request_lock);
     *request = MPI_REQUEST_NULL;
     return OMPI_SUCCESS;
 }
@@ -103,13 +101,14 @@ static int mca_pml_ob1_recv_request_cancel(struct ompi_request_t* ompi_request, 
     ompi_communicator_t *comm = request->req_recv.req_base.req_comm;
     mca_pml_ob1_comm_t *ob1_comm = comm->c_pml_comm;
 
+    /* The rest should be protected behind the match logic lock */
+    OB1_MATCHING_LOCK(&ob1_comm->matching_lock);
     if( true == request->req_match_received ) { /* way to late to cancel this one */
+        OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
         assert( OMPI_ANY_TAG != ompi_request->req_status.MPI_TAG ); /* not matched isn't it */
         return OMPI_SUCCESS;
     }
 
-    /* The rest should be protected behind the match logic lock */
-    OPAL_THREAD_LOCK(&ob1_comm->matching_lock);
     if( request->req_recv.req_base.req_peer == OMPI_ANY_SOURCE ) {
         opal_list_remove_item( &ob1_comm->wild_receives, (opal_list_item_t*)request );
     } else {
@@ -123,16 +122,14 @@ static int mca_pml_ob1_recv_request_cancel(struct ompi_request_t* ompi_request, 
      * to true. Otherwise, the request will never be freed.
      */
     request->req_recv.req_base.req_pml_complete = true;
-    OPAL_THREAD_UNLOCK(&ob1_comm->matching_lock);
+    OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
 
-    OPAL_THREAD_LOCK(&ompi_request_lock);
     ompi_request->req_status._cancelled = true;
     /* This macro will set the req_complete to true so the MPI Test/Wait* functions
      * on this request will be able to complete. As the status is marked as
      * cancelled the cancel state will be detected.
      */
     MCA_PML_OB1_RECV_REQUEST_MPI_COMPLETE(request);
-    OPAL_THREAD_UNLOCK(&ompi_request_lock);
     /*
      * Receive request cancelled, make user buffer accessible.
      */
@@ -866,8 +863,8 @@ void mca_pml_ob1_recv_request_progress_rndv( mca_pml_ob1_recv_request_t* recvreq
                                    recvreq->req_recv.req_base.req_count,
                                    recvreq->req_recv.req_base.req_datatype);
                    );
+        OPAL_THREAD_ADD_SIZE_T(&recvreq->req_bytes_received, bytes_received);
     }
-    OPAL_THREAD_ADD_SIZE_T(&recvreq->req_bytes_received, bytes_received);
     /* check completion status */
     if(recv_request_pml_complete_check(recvreq) == false &&
        recvreq->req_rdma_offset < recvreq->req_send_offset) {
@@ -1225,7 +1222,7 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req)
 
     MCA_PML_BASE_RECV_START(&req->req_recv.req_base);
 
-    OPAL_THREAD_LOCK(&ob1_comm->matching_lock);
+    OB1_MATCHING_LOCK(&ob1_comm->matching_lock);
     /**
      * The laps of time between the ACTIVATE event and the SEARCH_UNEX one include
      * the cost of the request lock.
@@ -1267,7 +1264,7 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req)
            it when the message comes in. */
         append_recv_req_to_queue(queue, req);
         req->req_match_received = false;
-        OPAL_THREAD_UNLOCK(&ob1_comm->matching_lock);
+        OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
     } else {
         if(OPAL_LIKELY(!IS_PROB_REQ(req))) {
             PERUSE_TRACE_COMM_EVENT(PERUSE_COMM_REQ_MATCH_UNEX,
@@ -1285,7 +1282,7 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req)
 
             opal_list_remove_item(&proc->unexpected_frags,
                                   (opal_list_item_t*)frag);
-            OPAL_THREAD_UNLOCK(&ob1_comm->matching_lock);
+            OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
 
             switch(hdr->hdr_common.hdr_type) {
             case MCA_PML_OB1_HDR_TYPE_MATCH:
@@ -1315,14 +1312,14 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req)
                restarted with this request during mrecv */
             opal_list_remove_item(&proc->unexpected_frags,
                                   (opal_list_item_t*)frag);
-            OPAL_THREAD_UNLOCK(&ob1_comm->matching_lock);
+            OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
 
             req->req_recv.req_base.req_addr = frag;
             mca_pml_ob1_recv_request_matched_probe(req, frag->btl,
                                                    frag->segments, frag->num_segments);
 
         } else {
-            OPAL_THREAD_UNLOCK(&ob1_comm->matching_lock);
+            OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
             mca_pml_ob1_recv_request_matched_probe(req, frag->btl,
                                                    frag->segments, frag->num_segments);
         }

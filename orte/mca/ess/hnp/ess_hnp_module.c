@@ -55,7 +55,6 @@
 
 #include "orte/mca/oob/base/base.h"
 #include "orte/mca/rml/base/base.h"
-#include "orte/mca/qos/base/base.h"
 #include "orte/mca/rml/rml_types.h"
 #include "orte/mca/routed/base/base.h"
 #include "orte/mca/routed/routed.h"
@@ -74,10 +73,10 @@
 #include "orte/mca/sstore/base/base.h"
 #endif
 #include "orte/mca/filem/base/base.h"
-#include "orte/mca/schizo/base/base.h"
 #include "orte/mca/state/base/base.h"
 #include "orte/mca/state/state.h"
 
+#include "orte/orted/orted_submit.h"
 #include "orte/orted/pmix/pmix_server.h"
 
 #include "orte/util/show_help.h"
@@ -297,7 +296,7 @@ static int rte_init(void)
          */
         if (ORTE_SUCCESS != (ret = orte_session_dir(false,
                                                     orte_process_info.tmpdir_base,
-                                                    orte_process_info.nodename, NULL,
+                                                    orte_process_info.nodename,
                                                     ORTE_PROC_MY_NAME))) {
             error = "orte_session_dir define";
             goto error;
@@ -310,7 +309,7 @@ static int rte_init(void)
         /* now actually create the directory tree */
         if (ORTE_SUCCESS != (ret = orte_session_dir(true,
                                                     orte_process_info.tmpdir_base,
-                                                    orte_process_info.nodename, NULL,
+                                                    orte_process_info.nodename,
                                                     ORTE_PROC_MY_NAME))) {
             error = "orte_session_dir";
             goto error;
@@ -339,16 +338,6 @@ static int rte_init(void)
     }
     if (ORTE_SUCCESS != (ret = orte_rml_base_select())) {
         error = "orte_rml_base_select";
-        goto error;
-    }
-
-    /* Messaging QoS Layer */
-    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_qos_base_framework, 0))) {
-        error = "orte_qos_base_open";
-        goto error;
-    }
-    if (ORTE_SUCCESS != (ret = orte_qos_base_select())) {
-        error = "orte_qos_base_select";
         goto error;
     }
 
@@ -620,7 +609,7 @@ static int rte_init(void)
 
     /* setup the PMIx framework - ensure it skips all non-PMIx components, but
      * do not override anything we were given */
-    opal_setenv("OMPI_MCA_pmix", "^s1,s2,cray", false, &environ);
+    opal_setenv("OMPI_MCA_pmix", "^s1,s2,cray,isolated", false, &environ);
     if (OPAL_SUCCESS != (ret = mca_base_framework_open(&opal_pmix_base_framework, 0))) {
         ORTE_ERROR_LOG(ret);
         error = "orte_pmix_base_open";
@@ -631,6 +620,8 @@ static int rte_init(void)
         error = "opal_pmix_base_select";
         goto error;
     }
+    /* set the event base */
+    opal_pmix_base_set_evbase(orte_event_base);
 
     /* setup the routed info - the selected routed component
      * will know what to do.
@@ -643,8 +634,9 @@ static int rte_init(void)
 
     /* setup the PMIx server */
     if (ORTE_SUCCESS != (ret = pmix_server_init())) {
-        ORTE_ERROR_LOG(ret);
-        error = "pmix server init";
+        /* the server code already barked, so let's be quiet */
+        ret = ORTE_ERR_SILENT;
+        error = "pmix_server_init";
         goto error;
     }
 
@@ -721,17 +713,15 @@ static int rte_init(void)
         error = "orte_dfs_select";
         goto error;
     }
-    /* setup the schizo framework */
-    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orte_schizo_base_framework, 0))) {
-        ORTE_ERROR_LOG(ret);
-        error = "orte_schizo_base_open";
-        goto error;
-    }
-    if (ORTE_SUCCESS != (ret = orte_schizo_base_select())) {
-        ORTE_ERROR_LOG(ret);
-        error = "orte_schizo_select";
-        goto error;
-    }
+
+    /* setup to support debugging */
+    orte_state.add_job_state(ORTE_JOB_STATE_READY_FOR_DEBUGGERS,
+                             orte_debugger_init_after_spawn,
+                             ORTE_SYS_PRI);
+    orte_state.add_job_state(ORTE_JOB_STATE_DEBUGGER_DETACH,
+                             orte_debugger_detached,
+                             ORTE_SYS_PRI);
+
     /* if a tool has launched us and is requesting event reports,
      * then set its contact info into the comm system
      */
@@ -795,10 +785,8 @@ static int rte_finalize(void)
         /** Remove the USR signal handlers */
         opal_event_signal_del(&sigusr1_handler);
         opal_event_signal_del(&sigusr2_handler);
-        if (orte_forward_job_control) {
-            opal_event_signal_del(&sigtstp_handler);
-            opal_event_signal_del(&sigcont_handler);
-        }
+        opal_event_signal_del(&sigtstp_handler);
+        opal_event_signal_del(&sigcont_handler);
         signals_set = false;
     }
 
@@ -808,7 +796,6 @@ static int rte_finalize(void)
     /* cleanup our data server */
     orte_data_server_finalize();
 
-    (void) mca_base_framework_close(&orte_schizo_base_framework);
     (void) mca_base_framework_close(&orte_dfs_base_framework);
     (void) mca_base_framework_close(&orte_filem_base_framework);
     /* output any lingering stdout/err data */
@@ -854,6 +841,9 @@ static int rte_finalize(void)
             fclose(orte_xml_fp);
         }
     }
+
+    /* release the job hash table */
+    OBJ_RELEASE(orte_job_data);
     return ORTE_SUCCESS;
 }
 

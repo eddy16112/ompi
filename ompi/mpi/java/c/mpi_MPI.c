@@ -12,7 +12,7 @@
  *                         All rights reserved.
  * Copyright (c) 2015      Los Alamos National Security, LLC.  All rights
  *                         reserved.
- * Copyright (c) 2015      Cisco Systems, Inc.  All rights reserved.
+ * Copyright (c) 2015-2016 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2015      Intel, Inc. All rights reserved.
  * Copyright (c) 2015      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
@@ -131,6 +131,10 @@ OBJ_CLASS_INSTANCE(ompi_java_buffer_t,
  */
 jint JNI_OnLoad(JavaVM *vm, void *reserved)
 {
+    // Ensure that PSM signal hijacking is disabled *before* loading
+    // the library (see comment in the function for more detail).
+    opal_init_psm();
+
     libmpi = dlopen("libmpi." OPAL_DYN_LIB_SUFFIX, RTLD_NOW | RTLD_GLOBAL);
 
 #if defined(HAVE_DL_INFO) && defined(HAVE_LIBGEN_H)
@@ -1124,6 +1128,8 @@ void ompi_java_releasePtrArray(JNIEnv *env, jlongArray array,
 
 jboolean ompi_java_exceptionCheck(JNIEnv *env, int rc)
 {
+    jboolean jni_exception;
+
     if (rc < 0) {
         /* handle ompi error code */
         rc = ompi_errcode_get_mpi_code (rc);
@@ -1131,16 +1137,13 @@ jboolean ompi_java_exceptionCheck(JNIEnv *env, int rc)
          * all Open MPI MPI error codes should be > 0. */
         assert (rc >= 0);
     }
+    jni_exception = (*env)->ExceptionCheck(env);
 
-    if(MPI_SUCCESS == rc)
+    if(MPI_SUCCESS == rc && JNI_FALSE == jni_exception)
     {
         return JNI_FALSE;
     }
-    else if((*env)->ExceptionCheck(env))
-    {
-        return JNI_TRUE;
-    }
-    else
+    else if(MPI_SUCCESS != rc)
     {
         int     errClass = ompi_mpi_errcode_get_class(rc);
         char    *message = ompi_mpi_errnum_get_string(rc);
@@ -1154,6 +1157,8 @@ jboolean ompi_java_exceptionCheck(JNIEnv *env, int rc)
         (*env)->DeleteLocalRef(env, jmessage);
         return JNI_TRUE;
     }
+    /* If we get here, a JNI error has occurred. */
+    return JNI_TRUE;
 }
 
 void* ompi_java_attrSet(JNIEnv *env, jbyteArray jval)

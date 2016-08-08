@@ -58,6 +58,7 @@
 #include "opal/mca/rcache/base/base.h"
 #include "opal/mca/rcache/rcache.h"
 #include "opal/mca/mpool/base/base.h"
+#include "opal/mca/btl/base/base.h"
 #include "opal/mca/pmix/pmix.h"
 #include "opal/util/timings.h"
 
@@ -98,15 +99,16 @@
 #endif
 #include "ompi/runtime/ompi_cr.h"
 
-#if defined(MEMORY_LINUX_PTMALLOC2) && MEMORY_LINUX_PTMALLOC2 && MEMORY_LINUX_HAVE_MALLOC_HOOK_SUPPORT
-#include "opal/mca/memory/linux/memory_linux.h"
+/* newer versions of gcc have poisoned this deprecated feature */
+#ifdef HAVE___MALLOC_INITIALIZE_HOOK
+#include "opal/mca/memory/base/base.h"
 /* So this sucks, but with OPAL in its own library that is brought in
    implicity from libmpi, there are times when the malloc initialize
    hook in the memory component doesn't work.  So we have to do it
    from here, since any MPI code is going to call MPI_Init... */
 OPAL_DECLSPEC void (*__malloc_initialize_hook) (void) =
-    opal_memory_linux_malloc_init_hook;
-#endif /* defined(MEMORY_LINUX_PTMALLOC2) && MEMORY_LINUX_PTMALLOC2 && MEMORY_LINUX_HAVE_MALLOC_HOOK_SUPPORT */
+    opal_memory_base_malloc_init_hook;
+#endif
 
 /* This is required for the boundaries of the hash tables used to store
  * the F90 types returned by the MPI_Type_create_f90_XXX functions.
@@ -325,15 +327,7 @@ void ompi_mpi_thread_level(int requested, int *provided)
      */
     ompi_mpi_thread_requested = requested;
 
-    if (OMPI_ENABLE_THREAD_MULTIPLE == 1) {
-        ompi_mpi_thread_provided = *provided = requested;
-    } else {
-        if (MPI_THREAD_MULTIPLE == requested) {
-            ompi_mpi_thread_provided = *provided = MPI_THREAD_SERIALIZED;
-        } else {
-            ompi_mpi_thread_provided = *provided = requested;
-        }
-    }
+    ompi_mpi_thread_provided = *provided = requested;
 
     if (!ompi_mpi_main_thread) {
         ompi_mpi_main_thread = opal_thread_get_self();
@@ -371,6 +365,12 @@ static int ompi_register_mca_variables(void)
     return OMPI_SUCCESS;
 }
 
+static void fence_release(int status, void *cbdata)
+{
+    volatile bool *active = (volatile bool*)cbdata;
+    *active = false;
+}
+
 int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
 {
     int ret;
@@ -379,6 +379,9 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
     char *error = NULL;
     char *cmd=NULL, *av=NULL;
     ompi_errhandler_errtrk_t errtrk;
+    volatile bool active;
+    opal_list_t info;
+    opal_value_t *kv;
     OPAL_TIMING_DECLARE(tm);
     OPAL_TIMING_INIT_EXT(&tm, OPAL_TIMING_GET_TIME_OF_DAY);
 
@@ -408,11 +411,24 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
     /* Indicate that we have *started* MPI_INIT* */
     ompi_mpi_init_started = true;
 
-    /* Setup enough to check get/set MCA params */
+    /* Figure out the final MPI thread levels.  If we were not
+       compiled for support for MPI threads, then don't allow
+       MPI_THREAD_MULTIPLE.  Set this stuff up here early in the
+       process so that other components can make decisions based on
+       this value. */
 
+    ompi_mpi_thread_level(requested, provided);
+
+    /* Setup enough to check get/set MCA params */
     if (OPAL_SUCCESS != (ret = opal_init_util(&argc, &argv))) {
         error = "ompi_mpi_init: opal_init_util failed";
         goto error;
+    }
+
+    /* If thread support was enabled, then setup OPAL to allow for them. This must be done
+     * early to prevent a race condition that can occur with orte_init(). */
+    if (*provided != MPI_THREAD_SINGLE) {
+        opal_set_using_threads(true);
     }
 
     /* Convince OPAL to use our naming scheme */
@@ -508,43 +524,33 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
     /* Register the default errhandler callback  */
     errtrk.status = OPAL_ERROR;
     errtrk.active = true;
-    opal_pmix.register_errhandler(NULL, ompi_errhandler_callback,
-                                  ompi_errhandler_registration_callback,
-                                  (void*)&errtrk);
+    /* we want to go first */
+    OBJ_CONSTRUCT(&info, opal_list_t);
+    kv = OBJ_NEW(opal_value_t);
+    kv->key = strdup(OPAL_PMIX_EVENT_ORDER_PREPEND);
+    opal_list_append(&info, &kv->super);
+    opal_pmix.register_evhandler(NULL, &info, ompi_errhandler_callback,
+                                 ompi_errhandler_registration_callback,
+                                 (void*)&errtrk);
     OMPI_WAIT_FOR_COMPLETION(errtrk.active);
+    OPAL_LIST_DESTRUCT(&info);
     if (OPAL_SUCCESS != errtrk.status) {
         error = "Error handler registration";
         ret = errtrk.status;
         goto error;
     }
 
-    /* Figure out the final MPI thread levels.  If we were not
-       compiled for support for MPI threads, then don't allow
-       MPI_THREAD_MULTIPLE.  Set this stuff up here early in the
-       process so that other components can make decisions based on
-       this value. */
-
-    ompi_mpi_thread_level(requested, provided);
 
     /* determine the bitflag belonging to the threadlevel_support provided */
     memset ( &threadlevel_bf, 0, sizeof(uint8_t));
     OMPI_THREADLEVEL_SET_BITFLAG ( ompi_mpi_thread_provided, threadlevel_bf );
 
-#if OMPI_ENABLE_THREAD_MULTIPLE
     /* add this bitflag to the modex */
     OPAL_MODEX_SEND_STRING(ret, OPAL_PMIX_GLOBAL,
                            "MPI_THREAD_LEVEL", &threadlevel_bf, sizeof(uint8_t));
     if (OPAL_SUCCESS != ret) {
         error = "ompi_mpi_init: modex send thread level";
         goto error;
-    }
-#endif
-
-    /* If thread support was enabled, then setup OPAL to allow for
-       them. */
-    if ((OPAL_ENABLE_PROGRESS_THREADS == 1) ||
-        (*provided != MPI_THREAD_SINGLE)) {
-        opal_set_using_threads(true);
     }
 
     /* initialize datatypes. This step should be done early as it will
@@ -599,6 +605,10 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
         error = "mca_bml_base_open() failed";
         goto error;
     }
+    if (OMPI_SUCCESS != (ret = mca_bml_base_init (1, ompi_mpi_thread_multiple))) {
+        error = "mca_bml_base_init() failed";
+        goto error;
+    }
     if (OMPI_SUCCESS != (ret = mca_base_framework_open(&ompi_pml_base_framework, 0))) {
         error = "mca_pml_base_open() failed";
         goto error;
@@ -629,13 +639,6 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
     /* Select which MPI components to use */
 
     if (OMPI_SUCCESS !=
-        (ret = mca_mpool_base_init(OPAL_ENABLE_PROGRESS_THREADS,
-                                   ompi_mpi_thread_multiple))) {
-        error = "mca_mpool_base_init() failed";
-        goto error;
-    }
-
-    if (OMPI_SUCCESS !=
         (ret = mca_pml_base_select(OPAL_ENABLE_PROGRESS_THREADS,
                                    ompi_mpi_thread_multiple))) {
         error = "mca_pml_base_select() failed";
@@ -649,13 +652,23 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
      * if data exchange is required. The modex occurs solely across procs
      * in our job. If a barrier is required, the "modex" function will
      * perform it internally */
-    OPAL_MODEX();
+    active = true;
+    opal_pmix.commit();
+    if (!opal_pmix_base_async_modex) {
+        if (NULL != opal_pmix.fence_nb) {
+            opal_pmix.fence_nb(NULL, opal_pmix_collect_all_data,
+                               fence_release, (void*)&active);
+            OMPI_WAIT_FOR_COMPLETION(active);
+        } else {
+            opal_pmix.fence(NULL, opal_pmix_collect_all_data);
+        }
+    }
 
     OPAL_TIMING_MNEXT((&tm,"time from modex to first barrier"));
 
     /* select buffered send allocator component to be used */
     if( OMPI_SUCCESS !=
-	(ret = mca_pml_base_bsend_init(ompi_mpi_thread_multiple))) {
+        (ret = mca_pml_base_bsend_init(ompi_mpi_thread_multiple))) {
         error = "mca_pml_base_bsend_init() failed";
         goto error;
     }
@@ -817,7 +830,16 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
     /* wait for everyone to reach this point - this is a hard
      * barrier requirement at this time, though we hope to relax
      * it at a later point */
-    opal_pmix.fence(NULL, 0);
+    if (!ompi_async_mpi_init) {
+        active = true;
+        if (NULL != opal_pmix.fence_nb) {
+            opal_pmix.fence_nb(NULL, opal_pmix_collect_all_data,
+                               fence_release, (void*)&active);
+            OMPI_WAIT_FOR_COMPLETION(active);
+        } else {
+            opal_pmix.fence(NULL, opal_pmix_collect_all_data);
+        }
+    }
 
     /* check for timing request - get stop time and report elapsed
        time if so, then start the clock again */
@@ -854,10 +876,9 @@ int ompi_mpi_init(int argc, char **argv, int requested, int *provided)
        e.g. hierarch, might create subcommunicators. The threadlevel
        requested by all processes is required in order to know
        which cid allocation algorithm can be used. */
-    if ( OMPI_SUCCESS !=
-	 ( ret = ompi_comm_cid_init ())) {
-	error = "ompi_mpi_init: ompi_comm_cid_init failed";
-	goto error;
+    if (OMPI_SUCCESS != ( ret = ompi_comm_cid_init ())) {
+        error = "ompi_mpi_init: ompi_comm_cid_init failed";
+        goto error;
     }
 
     /* Init coll for the comms. This has to be after dpm_base_select,

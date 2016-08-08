@@ -10,7 +10,7 @@
  * Copyright (c) 2004-2005 The Regents of the University of California.
  *                         All rights reserved.
  * Copyright (c) 2013      Cisco Systems, Inc.  All rights reserved.
- * Copyright (c) 2014-2015 Intel, Inc.  All rights reserved.
+ * Copyright (c) 2014-2016 Intel, Inc.  All rights reserved.
  * Copyright (c) 2015      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * $COPYRIGHT$
@@ -249,7 +249,6 @@ int orte_util_add_dash_host_nodes(opal_list_t *nodes,
                 }
             } else {
                 node->slots = 1;
-                ORTE_FLAG_SET(node, ORTE_NODE_FLAG_SLOTS_GIVEN);
             }
             opal_list_append(&adds, &node->super);
         }
@@ -267,13 +266,12 @@ int orte_util_add_dash_host_nodes(opal_list_t *nodes,
             if (0 == strcmp(nd->name, node->name)) {
                 found = true;
                 OPAL_OUTPUT_VERBOSE((1, orte_ras_base_framework.framework_output,
-                                     "%s dashhost: found existing node %s on input list - ignoring",
+                                     "%s dashhost: found existing node %s on input list - adding slots",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), node->name));
                 /* transfer across the number of slots */
-                node->slots = nd->slots;
+                node->slots += nd->slots;
                 if (ORTE_FLAG_TEST(nd, ORTE_NODE_FLAG_SLOTS_GIVEN)) {
                     ORTE_FLAG_SET(node, ORTE_NODE_FLAG_SLOTS_GIVEN);
-                    node->slots = nd->slots;
                 }
                 break;
             }

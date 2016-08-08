@@ -10,7 +10,7 @@
 #                         University of Stuttgart.  All rights reserved.
 # Copyright (c) 2004-2005 The Regents of the University of California.
 #                         All rights reserved.
-# Copyright (c) 2006-2015 Cisco Systems, Inc.  All rights reserved.
+# Copyright (c) 2006-2016 Cisco Systems, Inc.  All rights reserved.
 # Copyright (c) 2006-2008 Sun Microsystems, Inc.  All rights reserved.
 # Copyright (c) 2006-2011 Los Alamos National Security, LLC.  All rights
 #                         reserved.
@@ -53,6 +53,8 @@ AC_INIT([project_name_long],
 AC_PREREQ(2.60)
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_MACRO_DIR(config)
+
+OPAL_CAPTURE_CONFIGURE_CLI([OPAL_CONFIGURE_CLI])
 
 # Get our platform support file.  This has to be done very, very early
 # because it twiddles random bits of autoconf
@@ -149,6 +151,7 @@ AC_SUBST(libmca_opal_common_sm_so_version)
 AC_SUBST(libmca_opal_common_ugni_so_version)
 AC_SUBST(libmca_opal_common_verbs_so_version)
 AC_SUBST(libmca_orte_common_alps_so_version)
+AC_SUBST(libmca_ompi_common_ompio_so_version)
 
 #
 # Get the versions of the autotools that were used to bootstrap us
@@ -577,7 +580,8 @@ AC_CHECK_HEADERS([alloca.h aio.h arpa/inet.h dirent.h \
     dlfcn.h execinfo.h err.h fcntl.h grp.h libgen.h \
     libutil.h memory.h netdb.h netinet/in.h netinet/tcp.h \
     poll.h pthread.h pty.h pwd.h sched.h \
-    strings.h stropts.h sys/fcntl.h sys/ipc.h sys/shm.h \
+    strings.h stropts.h linux/ethtool.h linux/sockios.h \
+    net/if.h sys/fcntl.h sys/ipc.h sys/shm.h \
     sys/ioctl.h sys/mman.h sys/param.h sys/queue.h \
     sys/resource.h sys/select.h sys/socket.h sys/sockio.h \
     sys/stat.h sys/statfs.h sys/statvfs.h sys/time.h sys/tree.h \
@@ -628,13 +632,64 @@ AC_CACHE_SAVE
 opal_show_title "Type tests"
 
 AC_CHECK_TYPES([socklen_t, struct sockaddr_in, struct sockaddr_in6,
-                struct sockaddr_storage],
+                struct sockaddr_storage, struct ifreq, struct ethtool_cmd],
                [], [], [AC_INCLUDES_DEFAULT
 #if HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
+#ifdef HAVE_LINUX_ETHTOOL_H
+#include <linux/ethtool.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif])
+
+AC_CHECK_DECLS([ethtool_cmd_speed, SIOCETHTOOL],
+               [], [], [AC_INCLUDES_DEFAULT
+#ifdef HAVE_LINUX_ETHTOOL_H
+#include <linux/ethtool.h>
+#endif
+#ifdef HAVE_LINUX_SOCKIOS_H
+#include <linux/sockios.h>
+#endif])
+
+AC_CHECK_MEMBERS([struct ethtool_cmd.speed_hi],
+               [], [], [AC_INCLUDES_DEFAULT
+#ifdef HAVE_LINUX_ETHTOOL_H
+#include <linux/ethtool.h>
+#endif
+#ifdef HAVE_LINUX_SOCKIOS_H
+#include <linux/sockios.h>
+#endif])
+
+AC_CHECK_MEMBERS([struct ethtool_cmd.speed_hi],
+               [], [], [AC_INCLUDES_DEFAULT
+#ifdef HAVE_LINUX_ETHTOOL_H
+#include <linux/ethtool.h>
+#endif
+#ifdef HAVE_LINUX_SOCKIOS_H
+#include <linux/sockios.h>
+#endif])
+
+AC_CHECK_MEMBERS([struct ethtool_cmd.speed_hi],
+               [], [], [AC_INCLUDES_DEFAULT
+#ifdef HAVE_LINUX_ETHTOOL_H
+#include <linux/ethtool.h>
+#endif
+#ifdef HAVE_LINUX_SOCKIOS_H
+#include <linux/sockios.h>
+#endif])
+
+AC_CHECK_MEMBERS([struct ethtool_cmd.speed_hi],
+               [], [], [AC_INCLUDES_DEFAULT
+#ifdef HAVE_LINUX_ETHTOOL_H
+#include <linux/ethtool.h>
+#endif
+#ifdef HAVE_LINUX_SOCKIOS_H
+#include <linux/sockios.h>
 #endif])
 
 AC_CHECK_DECLS([AF_UNSPEC, PF_UNSPEC, AF_INET6, PF_INET6],
@@ -802,7 +857,7 @@ OPAL_SEARCH_LIBS_CORE([ceil], [m])
 # -lrt might be needed for clock_gettime
 OPAL_SEARCH_LIBS_CORE([clock_gettime], [rt])
 
-AC_CHECK_FUNCS([asprintf snprintf vasprintf vsnprintf openpty isatty getpwuid fork waitpid execve pipe ptsname setsid mmap tcgetpgrp posix_memalign strsignal sysconf syslog vsyslog regcmp regexec regfree _NSGetEnviron socketpair strncpy_s usleep mkfifo dbopen dbm_open statfs statvfs setpgid setenv])
+AC_CHECK_FUNCS([asprintf snprintf vasprintf vsnprintf openpty isatty getpwuid fork waitpid execve pipe ptsname setsid mmap tcgetpgrp posix_memalign strsignal sysconf syslog vsyslog regcmp regexec regfree _NSGetEnviron socketpair strncpy_s usleep mkfifo dbopen dbm_open statfs statvfs setpgid setenv __malloc_initialize_hook])
 
 # Sanity check: ensure that we got at least one of statfs or statvfs.
 if test $ac_cv_func_statfs = no && test $ac_cv_func_statvfs = no; then
@@ -896,7 +951,6 @@ OPAL_CHECK_BROKEN_QSORT
 # Check out what thread support we have
 #
 OPAL_CONFIG_THREADS
-OMPI_CONFIG_THREADS
 
 CFLAGS="$CFLAGS $THREAD_CFLAGS"
 CPPFLAGS="$CPPFLAGS $THREAD_CPPFLAGS"
@@ -1395,3 +1449,5 @@ m4_ifdef([project_ompi], [OMPI_CONFIG_FILES])
 m4_ifdef([project_oshmem], [OSHMEM_CONFIG_FILES])
 
 AC_OUTPUT
+
+OPAL_SUMMARY_PRINT

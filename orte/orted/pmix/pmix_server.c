@@ -64,6 +64,7 @@
 #include "orte/mca/rml/rml.h"
 #include "orte/mca/rml/base/rml_contact.h"
 #include "orte/util/name_fns.h"
+#include "orte/util/proc_info.h"
 #include "orte/util/session_dir.h"
 #include "orte/util/show_help.h"
 #include "orte/runtime/orte_globals.h"
@@ -84,20 +85,21 @@ static void pmix_server_dmdx_resp(int status, orte_process_name_t* sender,
 pmix_server_globals_t orte_pmix_server_globals = {0};
 
 static opal_pmix_server_module_t pmix_server = {
-    pmix_server_client_connected_fn,
-    pmix_server_client_finalized_fn,
-    pmix_server_abort_fn,
-    pmix_server_fencenb_fn,
-    pmix_server_dmodex_req_fn,
-    pmix_server_publish_fn,
-    pmix_server_lookup_fn,
-    pmix_server_unpublish_fn,
-    pmix_server_spawn_fn,
-    pmix_server_connect_fn,
-    pmix_server_disconnect_fn,
-    pmix_server_register_events_fn,
-    pmix_server_deregister_events_fn,
-    NULL
+    .client_connected = pmix_server_client_connected_fn,
+    .client_finalized = pmix_server_client_finalized_fn,
+    .abort = pmix_server_abort_fn,
+    .fence_nb = pmix_server_fencenb_fn,
+    .direct_modex = pmix_server_dmodex_req_fn,
+    .publish = pmix_server_publish_fn,
+    .lookup = pmix_server_lookup_fn,
+    .unpublish = pmix_server_unpublish_fn,
+    .spawn = pmix_server_spawn_fn,
+    .connect = pmix_server_connect_fn,
+    .disconnect = pmix_server_disconnect_fn,
+    .register_events = pmix_server_register_events_fn,
+    .deregister_events = pmix_server_deregister_events_fn,
+    .query = pmix_server_query_fn,
+    .tool_connected = pmix_tool_connected_fn
 };
 
 void pmix_server_register_params(void)
@@ -150,11 +152,18 @@ static void eviction_cbfunc(struct opal_hotel_t *hotel,
                             int room_num, void *occupant)
 {
     pmix_server_req_t *req = (pmix_server_req_t*)occupant;
+    bool timeout = false;
     int rc;
 
     /* decrement the request timeout */
     req->timeout -= orte_pmix_server_globals.timeout;
-    if (0 < req->timeout) {
+    if (req->timeout > 0) {
+        req->timeout -= orte_pmix_server_globals.timeout;
+        if (0 >= req->timeout) {
+            timeout = true;
+        }
+    }
+    if (!timeout) {
         /* not done yet - check us back in */
         if (OPAL_SUCCESS == (rc = opal_hotel_checkin(&orte_pmix_server_globals.reqs, req, &req->room_num))) {
             return;
@@ -182,6 +191,7 @@ int pmix_server_init(void)
 {
     int rc;
     opal_list_t info;
+    opal_value_t *kv;
 
     if (orte_pmix_server_globals.initialized) {
         return ORTE_SUCCESS;
@@ -229,7 +239,6 @@ int pmix_server_init(void)
     if (NULL != opal_hwloc_topology) {
         char *xmlbuffer=NULL;
         int len;
-        opal_value_t *kv;
         kv = OBJ_NEW(opal_value_t);
         kv->key = strdup(OPAL_PMIX_LOCAL_TOPO);
         if (0 != hwloc_topology_export_xmlbuffer(opal_hwloc_topology, &xmlbuffer, &len)) {
@@ -241,11 +250,32 @@ int pmix_server_init(void)
         kv->type = OPAL_STRING;
         opal_list_append(&info, &kv->super);
     }
+    /* tell the server to allow tool connections */
+    kv = OBJ_NEW(opal_value_t);
+    kv->key = strdup(OPAL_PMIX_SERVER_TOOL_SUPPORT);
+    kv->type = OPAL_BOOL;
+    kv->data.flag = true;
+    opal_list_append(&info, &kv->super);
+    /* tell the server our temp directory */
+    kv = OBJ_NEW(opal_value_t);
+    kv->key = strdup(OPAL_PMIX_SERVER_TMPDIR);
+    kv->type = OPAL_STRING;
+    kv->data.string = strdup(orte_process_info.tmpdir_base);
+    opal_list_append(&info, &kv->super);
+    /* use the same for the system temp directory */
+    kv = OBJ_NEW(opal_value_t);
+    kv->key = strdup(OPAL_PMIX_SYSTEM_TMPDIR);
+    kv->type = OPAL_STRING;
+    kv->data.string = strdup(orte_process_info.tmpdir_base);
+    opal_list_append(&info, &kv->super);
 
     /* setup the local server */
     if (ORTE_SUCCESS != (rc = opal_pmix.server_init(&pmix_server, &info))) {
         ORTE_ERROR_LOG(rc);
         /* memory cleanup will occur when finalize is called */
+        orte_show_help("help-orterun.txt", "orterun:pmix-failed", true,
+                       orte_process_info.proc_session_dir);
+        return rc;
     }
     OPAL_LIST_DESTRUCT(&info);
 
@@ -645,6 +675,9 @@ static void opcon(orte_pmix_server_op_caddy_t *p)
     p->procs = NULL;
     p->eprocs = NULL;
     p->info = NULL;
+    p->cbfunc = NULL;
+    p->infocbfunc = NULL;
+    p->toolcbfunc = NULL;
     p->cbdata = NULL;
 }
 OBJ_CLASS_INSTANCE(orte_pmix_server_op_caddy_t,

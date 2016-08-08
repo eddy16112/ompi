@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016      Intel, Inc.  All rights reserved.
+ * Copyright (c) 2016 Cisco Systems, Inc.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -42,27 +43,27 @@ static int isolated_component_query(mca_base_module_t **module, int *priority);
 
 opal_pmix_base_component_t mca_pmix_isolated_component = {
     .base_version = {
-        /* Indicate that we are a pmix v1.1.0 component (which also
-           implies a specific MCA version) */
+	/* Indicate that we are a pmix v1.1.0 component (which also
+	   implies a specific MCA version) */
 
-        OPAL_PMIX_BASE_VERSION_2_0_0,
+	OPAL_PMIX_BASE_VERSION_2_0_0,
 
-        /* Component name and version */
+	/* Component name and version */
 
-        .mca_component_name = "isolated",
-        MCA_BASE_MAKE_VERSION(component, OPAL_MAJOR_VERSION, OPAL_MINOR_VERSION,
-                              OPAL_RELEASE_VERSION),
+	.mca_component_name = "isolated",
+	MCA_BASE_MAKE_VERSION(component, OPAL_MAJOR_VERSION, OPAL_MINOR_VERSION,
+			      OPAL_RELEASE_VERSION),
 
-        /* Component open and close functions */
+	/* Component open and close functions */
 
-        .mca_open_component = isolated_open,
-        .mca_close_component = isolated_close,
-        .mca_query_component = isolated_component_query,
+	.mca_open_component = isolated_open,
+	.mca_close_component = isolated_close,
+	.mca_query_component = isolated_component_query,
     },
     /* Next the MCA v1.0.0 component meta data */
     .base_data = {
-        /* The component is checkpoint ready */
-        MCA_BASE_METADATA_PARAM_CHECKPOINT
+	/* The component is checkpoint ready */
+	MCA_BASE_METADATA_PARAM_CHECKPOINT
     }
 };
 
@@ -79,16 +80,8 @@ static int isolated_close(void)
 
 static int isolated_component_query(mca_base_module_t **module, int *priority)
 {
-    /* if we are in a Singularity container, then we cannot spawn an
-     * HNP and are truly on our own and cannot call comm_spawn or
-     * any of its friends */
-    if (NULL != getenv("SINGULARITY_CONTAINER")) {
-        *priority = 100;
-        *module = (mca_base_module_t *)&opal_pmix_isolated_module;
-        return OPAL_SUCCESS;
-    }
-    /* otherwise, ignore us */
+    /* ignore us unless requested */
     *priority = 0;
-    *module = NULL;
-    return OPAL_ERR_TAKE_NEXT_OPTION;
+    *module = (mca_base_module_t *)&opal_pmix_isolated_module;
+    return OPAL_SUCCESS;
 }
