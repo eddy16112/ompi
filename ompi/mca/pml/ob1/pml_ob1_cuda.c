@@ -41,8 +41,6 @@
 #include "opal/mca/common/cuda/common_cuda.h"
 #include "opal/mca/btl/smcuda/btl_smcuda.h"
 
-#define CUDA_DDT_WITH_RDMA 1
-
 size_t mca_pml_ob1_rdma_cuda_btls(
     mca_bml_base_endpoint_t* bml_endpoint,
     unsigned char* base,
@@ -164,7 +162,6 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
                 convertor->pipeline_seq = 0;
                 rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
             }
-
             
         } else {
             if (bml_btl->btl->btl_cuda_max_send_size != 0) {
@@ -187,8 +184,6 @@ int mca_pml_ob1_send_request_start_cuda(mca_pml_ob1_send_request_t* sendreq,
     }
     return rc;
 }
-
-
 
 size_t mca_pml_ob1_rdma_cuda_btls(
     mca_bml_base_endpoint_t* bml_endpoint,
