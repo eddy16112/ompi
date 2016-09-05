@@ -187,7 +187,6 @@ static int smcuda_register(void)
     mca_btl_smcuda.super.btl_exclusivity = MCA_BTL_EXCLUSIVITY_LOW;
 #endif /* OPAL_CUDA_SUPPORT */
     mca_btl_smcuda.super.btl_cuda_ddt_pipeline_size = mca_btl_smcuda_component.cuda_ddt_pipeline_size;
-    printf("pipeline size %lu\n", mca_btl_smcuda.super.btl_cuda_ddt_pipeline_size);
     mca_btl_smcuda.super.btl_cuda_ddt_pipeline_depth = 4;
     mca_btl_smcuda.super.btl_cuda_ddt_allow_rdma = 1;
     mca_btl_smcuda.super.btl_eager_limit = 4*1024;
@@ -200,6 +199,7 @@ static int smcuda_register(void)
     mca_btl_smcuda.super.btl_registration_handle_size = sizeof (mca_btl_base_registration_handle_t);
     mca_btl_smcuda.super.btl_bandwidth = 9000;  /* Mbs */
     mca_btl_smcuda.super.btl_latency   = 1;     /* Microsecs */
+    OPAL_OUTPUT_VERBOSE((OPAL_DATATYPE_CUDA_VERBOSE_LEVEL, mca_common_cuda_output, "SMCUDA BTL pipeline size %lu\n", mca_btl_smcuda.super.btl_cuda_ddt_pipeline_size));
 
     /* Call the BTL based to register its MCA params */
     mca_btl_base_param_register(&mca_btl_smcuda_component.super.btl_version,
@@ -826,26 +826,6 @@ static void btl_smcuda_control(mca_btl_base_module_t* btl,
         opal_output(0, "Received UNKNOWN CUDA IPC control message. This should not happen.");
     }
 }
-
-/*
-static void btl_smcuda_datatype_pack_callback(void *stream, int32_t error, void *pack_callback_data)
-{
-    btl_smcuda_ddt_callback_t *cb_data = (btl_smcuda_ddt_callback_t *)pack_callback_data;
-    cuda_ddt_hdr_t *send_msg = &(cb_data->sig_msg);
-    printf("******************* I am in pack call back, seq %d\n", send_msg->seq);
-    mca_btl_smcuda_send_cuda_unpack_sig(cb_data->btl, cb_data->endpoint, send_msg);
-    free(cb_data);
-}
-
-static void btl_smcuda_datatype_unpack_callback(void *stream, int32_t error, void *unpack_callback_data)
-{
-    btl_smcuda_ddt_callback_t *cb_data = (btl_smcuda_ddt_callback_t *)unpack_callback_data;
-    cuda_ddt_hdr_t *send_msg = &(cb_data->sig_msg);
-    printf("******************* I am in unpack call back, seq %d\n", send_msg->seq);
-    mca_btl_smcuda_send_cuda_pack_sig(cb_data->btl, cb_data->endpoint, send_msg);
-    free(cb_data);
-}
-*/
 
 static void btl_smcuda_datatype_pack_event_callback(btl_smcuda_ddt_callback_t *pack_callback_data)
 {
